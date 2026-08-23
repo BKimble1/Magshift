@@ -18,6 +18,8 @@ repository.
 | 6 | Threshold validation before any detection claim | Engineering | **BLOCKING** — see `VALIDATION_PROTOCOL.md` §7 |
 | 7 | Screenshots from a real device | Design | Required; see §6 |
 | 8 | App icon | Design | A generated icon ships at `WallField/Resources/Assets.xcassets/AppIcon.appiconset`. Replace it if Idlery has brand artwork |
+| 9 | Codemagic App Store Connect integration name | Idlery Services LLC | **BLOCKING for CI** — `integrations.app_store_connect` in `codemagic.yaml` must match the integration name in Codemagic → Integrations |
+| 10 | `APP_STORE_APPLE_ID` environment variable | Idlery Services LLC | Optional. Lets the CI derive the build number from App Store Connect instead of only Codemagic's counter |
 
 ## 2. Build configuration
 
@@ -59,6 +61,29 @@ the capability keys guarantee anything: camera denial and restriction are
 explained with a route to Settings where one exists, an unsupported device is
 explained and offers Diagnostics instead, and a missing magnetometer is reported
 rather than crashed on.
+
+## 3a. Export compliance
+
+`ITSAppUsesNonExemptEncryption` is `false` in `Config/WallField-Info.plist`, and
+that is **accurate for this code**, not an assumption:
+
+* the app imports only ARKit, AVFoundation, AudioToolbox, Charts, Combine,
+  CoreMotion, Foundation, Observation, RealityKit, SwiftUI, UIKit, `os` and
+  `simd` — no CryptoKit, no CommonCrypto, no Security, no Network;
+* there is no `URLSession`, no socket, no web view, and no network call of any
+  kind, so there is no HTTPS to declare;
+* there are no entitlements files, so no keychain sharing or app groups;
+* scans are written as plain JSON. The only encryption involved is iOS's own
+  Data Protection at rest, which is exempt.
+
+`Tools/validate_codemagic.py` re-checks all of that on every run: it fails if
+the key is missing or true, if any encryption or networking framework is
+imported, or if an entitlements file appears. The release workflow additionally
+unzips the built IPA and asserts the key survived into the shipped `Info.plist`,
+so the compliance question cannot stall a TestFlight upload.
+
+Answer "No" to the export-compliance question in App Store Connect on the
+strength of the above.
 
 ## 4. App Privacy answers
 
@@ -204,11 +229,45 @@ Paste this into the review notes field:
 * **2.3 Accurate Metadata.** The prohibited-wording list above exists to satisfy
   this, and is enforced by a repository check.
 
-## 9. Pre-submission checklist
+## 9. Continuous integration
+
+`codemagic.yaml` defines two manually triggered Codemagic workflows on a macOS
+M2 machine with Xcode 26.4:
+
+* **`wallfield-simulator-tests`** — toolchain guard, `Tools/check_all.sh`,
+  compile for a discovered iOS Simulator, and the full unit and UI test suite.
+  Code signing is disabled and nothing is published.
+* **`wallfield-testflight`** — the same checks and tests, then a signed App
+  Store archive uploaded to App Store Connect and TestFlight.
+
+Points that matter for review and for the store:
+
+* The first script fails the build unless Xcode is at least 26.4 **and** the
+  newest installed iOS SDK is at least 26.0, which is what Apple requires of
+  uploads made since 28 April 2026.
+* The release build is an ordinary App Store export.
+  `testFlightInternalTestingOnly` is never set, and a dedicated step fails the
+  build if it appears in the generated export options — an internal-only build
+  could never be submitted to the App Store, which would defeat the point of
+  building it.
+* The build number is Codemagic's own increasing counter, raised above whatever
+  App Store Connect already holds when `APP_STORE_APPLE_ID` is set. It is
+  applied with a command-line `CURRENT_PROJECT_VERSION`, so the CI never mutates
+  the repository to change a version.
+* `submit_to_app_store` is explicitly `false`. Submitting for review is a
+  separate, deliberate decision, and `Docs/VALIDATION_PROTOCOL.md` has to be
+  completed first.
+
+**No Codemagic build has been run yet.** Until one has, the Swift project is
+unproven: it has never been compiled, and no XCTest has ever executed.
+
+## 10. Pre-submission checklist
 
 - [ ] `Tools/check_all.sh` passes
-- [ ] `xcodebuild test` passes on a Simulator, with no new warnings
-- [ ] `xcodebuild build` for a physical device succeeds with signing configured
+- [ ] `wallfield-simulator-tests` passes on Codemagic — this is the first proof
+      the project compiles at all
+- [ ] `wallfield-testflight` produces an IPA and uploads it
+- [ ] The uploaded build appears in TestFlight and is installable
 - [ ] `Docs/VALIDATION_PROTOCOL.md` §8 completed on a real device, with results
       written down
 - [ ] `Docs/VALIDATION_PROTOCOL.md` §7 answered from measured data, or all
