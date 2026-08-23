@@ -7,7 +7,12 @@ import simd
 /// delegate runs off the main actor, so it converts each `ARPlaneAnchor` into
 /// this `Sendable` snapshot -- including a copy of the boundary polygon -- and
 /// sends that instead.
-struct DetectedWall: Sendable, Equatable, Identifiable {
+/// `@unchecked Sendable` is justified and stated explicitly rather than derived:
+/// every stored property is an immutable-by-value graphics vector or matrix with
+/// no reference semantics and no mutable shared state, and declaring it here
+/// means the type does not depend on whether a particular SDK's `simd` overlay
+/// declares `simd_float4x4: Sendable`.
+struct DetectedWall: @unchecked Sendable, Equatable, Identifiable {
     var id: UUID
     /// Anchor transform in world space.
     var transform: simd_float4x4
@@ -28,7 +33,9 @@ struct DetectedWall: Sendable, Equatable, Identifiable {
 }
 
 /// The wall the user selected, with the coordinate frame captured at lock time.
-struct LockedWall: Sendable, Equatable {
+/// Main-actor only: it never crosses a concurrency boundary, so it deliberately
+/// makes no `Sendable` claim.
+struct LockedWall: Equatable {
     var id: UUID
     var frame: WallFrame
     /// Anchor transform at lock time.
@@ -108,6 +115,9 @@ protocol ARSpatialProviding: AnyObject {
     var lockedWall: LockedWall? { get }
     /// The crosshair's current intersection with the locked wall, if any.
     var currentHit: WallHit? { get }
+    /// The detected wall the crosshair is currently aimed at, before anything is
+    /// locked. Drives the "lock this wall" affordance.
+    var targetedWallID: UUID? { get }
     var isRunning: Bool { get }
     var problem: ARSessionProblem? { get }
     /// Whether the translucent wall overlay is drawn.

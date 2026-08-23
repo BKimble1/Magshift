@@ -32,6 +32,7 @@ final class SimulatedSpatialProvider: ARSpatialProviding {
     private(set) var detectedWalls: [DetectedWall] = []
     private(set) var lockedWall: LockedWall?
     private(set) var currentHit: WallHit?
+    private(set) var targetedWallID: UUID?
     private(set) var isRunning = false
     private(set) var problem: ARSessionProblem?
     private(set) var newestSpatialSample: SpatialSample?
@@ -165,6 +166,7 @@ final class SimulatedSpatialProvider: ARSpatialProviding {
         previousTimestamp = now
 
         trackingQuality = onWall ? .normal : .limited(.insufficientFeatures)
+        targetedWallID = onWall ? Self.wallID : nil
 
         let hit: WallHit?
         if let wall = lockedWall, onWall {

@@ -60,7 +60,11 @@ enum Format {
         return String(format: "%.0f ms", seconds * 1000)
     }
 
-    static let scanDate: DateFormatter = {
+    /// `nonisolated(unsafe)` is justified: `DateFormatter` is documented as safe
+    /// to use concurrently once configured, these instances are configured in
+    /// their initialiser and never mutated afterwards, and export generation
+    /// deliberately runs off the main actor.
+    nonisolated(unsafe) static let scanDate: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateStyle = .medium
         formatter.timeStyle = .short
@@ -68,7 +72,10 @@ enum Format {
     }()
 
     /// ISO-8601 with fractional seconds, used in exports only.
-    static let iso8601: ISO8601DateFormatter = {
+    ///
+    /// `nonisolated(unsafe)` is justified for the same reason as `scanDate`:
+    /// configured once, never mutated, and read from background export tasks.
+    nonisolated(unsafe) static let iso8601: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return formatter

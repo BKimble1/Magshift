@@ -31,22 +31,22 @@ enum Palette {
     // MARK: - SwiftUI
 
     /// Translucent overlay drawn over a detected wall.
-    static let wallOverlay = color(overlayBlueComponents)
+    static var wallOverlay: Color { color(overlayBlueComponents) }
     /// Smallest measured change.
-    static let strengthLow = color(lowComponents)
+    static var strengthLow: Color { color(lowComponents) }
     /// Moderate measured change.
-    static let strengthModerate = color(moderateComponents)
+    static var strengthModerate: Color { color(moderateComponents) }
     /// Largest measured change.
-    static let strengthStrong = color(strongComponents)
+    static var strengthStrong: Color { color(strongComponents) }
     /// The bright centre that marks a repeated cluster.
-    static let confirmedCore = color(confirmedCoreComponents)
+    static var confirmedCore: Color { color(confirmedCoreComponents) }
 
     /// Accent used for primary actions.
-    static let accent = color(overlayBlueComponents)
+    static var accent: Color { color(overlayBlueComponents) }
 
     /// Warning tint. Amber, never red, so a caution is not confused with a
     /// strong reading, and never green, so it is not confused with safety.
-    static let caution = color(moderateComponents)
+    static var caution: Color { color(moderateComponents) }
 
     static func color(forBand band: AnomalyStrengthBand) -> Color {
         switch band {

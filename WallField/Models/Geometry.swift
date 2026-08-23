@@ -47,14 +47,6 @@ struct WallPoint: Codable, Sendable, Hashable {
         let dy = y - other.y
         return (dx * dx + dy * dy).squareRoot()
     }
-
-    static func + (lhs: WallPoint, rhs: WallPoint) -> WallPoint {
-        WallPoint(x: lhs.x + rhs.x, y: lhs.y + rhs.y)
-    }
-
-    static func * (lhs: WallPoint, rhs: Double) -> WallPoint {
-        WallPoint(x: lhs.x * rhs, y: lhs.y * rhs)
-    }
 }
 
 /// An axis-aligned rectangle in wall space, used to frame the 2D summary map.

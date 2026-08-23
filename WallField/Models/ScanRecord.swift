@@ -66,14 +66,23 @@ struct ScanQualitySummary: Codable, Sendable, Hashable {
         candidatesProduced > 0 ? Double(candidatesAccepted) / Double(candidatesProduced) : 0
     }
 
+    /// One rejection reason and how often it occurred.
+    struct RejectionCount: Sendable, Hashable, Identifiable {
+        var reason: QualityReason
+        var count: Int
+        var id: String { reason.rawValue }
+    }
+
     /// Rejection reasons ordered by how often they occurred.
-    var rankedRejections: [(reason: QualityReason, count: Int)] {
+    var rankedRejections: [RejectionCount] {
         rejectionCounts
             .compactMap { key, value in
-                QualityReason(rawValue: key).map { ($0, value) }
+                QualityReason(rawValue: key).map { RejectionCount(reason: $0, count: value) }
             }
             .sorted { lhs, rhs in
-                lhs.1 == rhs.1 ? lhs.0.rawValue < rhs.0.rawValue : lhs.1 > rhs.1
+                lhs.count == rhs.count
+                    ? lhs.reason.rawValue < rhs.reason.rawValue
+                    : lhs.count > rhs.count
             }
     }
 

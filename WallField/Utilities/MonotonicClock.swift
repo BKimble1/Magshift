@@ -25,9 +25,12 @@ struct SystemMonotonicClock: MonotonicClock {
 
 /// Deterministic clock for tests and simulated data. Time only moves when the
 /// test moves it.
+///
+/// `@unchecked Sendable` is justified: the only mutable state is a single
+/// `TimeInterval`, and every read and write of it goes through `lock`. It cannot
+/// be an actor because `MonotonicClock.now` is a synchronous requirement, called
+/// from sensor callbacks that cannot await.
 final class ManualClock: MonotonicClock, @unchecked Sendable {
-    // Justification for `@unchecked Sendable`: the only mutable state is a
-    // `TimeInterval` guarded by `lock`, and every access goes through it.
     private let lock = NSLock()
     private var value: TimeInterval
 

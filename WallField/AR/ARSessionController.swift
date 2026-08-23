@@ -33,12 +33,20 @@ final class ARSessionController: ARSpatialProviding {
     private(set) var detectedWalls: [DetectedWall] = []
     private(set) var lockedWall: LockedWall?
     private(set) var currentHit: WallHit?
+    private(set) var targetedWallID: UUID?
     private(set) var isRunning = false
     private(set) var problem: ARSessionProblem?
     private(set) var newestSpatialSample: SpatialSample?
 
-    var isWallOverlayVisible = true {
-        didSet { applyOverlayVisibility() }
+    // Computed over a tracked stored property rather than using `didSet`, which
+    // `@Observable` does not support on a tracked property.
+    private var storedWallOverlayVisible = true
+    var isWallOverlayVisible: Bool {
+        get { storedWallOverlayVisible }
+        set {
+            storedWallOverlayVisible = newValue
+            applyOverlayVisibility()
+        }
     }
 
     // MARK: - AR objects
@@ -165,6 +173,7 @@ final class ARSessionController: ARSpatialProviding {
         clearWallOverlays()
         spatialBuffer.removeAll()
         newestSpatialSample = nil
+        targetedWallID = nil
         Log.ar.debug("AR session stopped.")
     }
 
@@ -278,8 +287,14 @@ final class ARSessionController: ARSpatialProviding {
         previousCameraPosition = cameraPosition
         previousSampleTime = now
 
-        let hit = lockedWall.flatMap { performRaycast(for: $0, cameraPosition: cameraPosition) }
-        currentHit = hit
+        if let wall = lockedWall {
+            currentHit = performRaycast(for: wall, cameraPosition: cameraPosition)
+            targetedWallID = wall.id
+        } else {
+            currentHit = nil
+            targetedWallID = raycastAnyVerticalPlane()
+        }
+        let hit = currentHit
 
         let sample = SpatialSample(
             timestamp: now,
@@ -333,6 +348,21 @@ final class ARSessionController: ARSpatialProviding {
             result: result, wall: wall, cameraPosition: cameraPosition,
             quality: .extrapolatedPlane, extrapolation: extrapolation
         )
+    }
+
+    /// Which detected vertical plane the crosshair is on, before anything is
+    /// locked. Only planes big enough to scan are offered.
+    private func raycastAnyVerticalPlane() -> UUID? {
+        let center = CGPoint(x: arView.bounds.midX, y: arView.bounds.midY)
+        guard center.x > 0, center.y > 0 else { return nil }
+        let results = arView.raycast(from: center, allowing: .existingPlaneGeometry, alignment: .vertical)
+        for result in results {
+            guard let identifier = result.anchor?.identifier else { continue }
+            if let wall = detectedWalls.first(where: { $0.id == identifier }), wall.isUsableAsWall {
+                return identifier
+            }
+        }
+        return nil
     }
 
     private func makeHit(
@@ -396,6 +426,7 @@ final class ARSessionController: ARSpatialProviding {
     func unlockWall() {
         lockedWall = nil
         currentHit = nil
+        targetedWallID = nil
         markerRoot?.removeFromParent()
         markerRoot = nil
         markerEntities.removeAll()
@@ -459,9 +490,9 @@ final class ARSessionController: ARSpatialProviding {
             // the readings belong to.
             let shouldShow: Bool
             if lockedWall == nil {
-                shouldShow = isWallOverlayVisible
+                shouldShow = storedWallOverlayVisible
             } else {
-                shouldShow = isWallOverlayVisible && isSelected
+                shouldShow = storedWallOverlayVisible && isSelected
             }
             model.isEnabled = shouldShow
             model.model?.materials = [WallVisualStyle.overlayMaterial(isSelected: isSelected)]

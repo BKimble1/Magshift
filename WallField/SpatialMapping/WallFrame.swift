@@ -1,6 +1,12 @@
 import Foundation
 import simd
 
+/// Convenience accessors for the columns of a 4x4 transform.
+///
+/// ARKit expresses an anchor's orientation as the basis vectors in columns 0-2
+/// and its position in column 3. Naming them here keeps the geometry below
+/// readable, and keeps the convention documented in one place rather than
+/// re-derived at each use.
 extension simd_float4x4 {
     /// Translation component.
     var translation: SIMD3<Float> {
@@ -53,7 +59,7 @@ struct WallFrame: Codable, Sendable, Hashable {
     var normal: Vector3
 
     /// World up. ARKit's world coordinate system is gravity-aligned with +Y up.
-    static let worldUp = SIMD3<Float>(0, 1, 0)
+    static var worldUp: SIMD3<Float> { SIMD3<Float>(0, 1, 0) }
 
     /// Builds a frame from a vertical plane anchor's world transform.
     ///

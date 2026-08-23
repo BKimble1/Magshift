@@ -1,7 +1,10 @@
 import Foundation
 
 /// Everything the gate needs to judge one candidate.
-struct ScanQualityInputs: Sendable {
+///
+/// Main-actor only, like the pose buffer it draws on, so it makes no `Sendable`
+/// claim.
+struct ScanQualityInputs {
     var availability: MagneticFieldAvailability
     var timing: SampleTimingHealth
     var isCalibrated: Bool
@@ -16,7 +19,7 @@ struct ScanQualityInputs: Sendable {
 /// Every condition in the product requirements is checked here, in one pure
 /// function, so the rules can be read in one screen and tested exhaustively.
 /// Nothing else in the app is allowed to place a marker.
-struct ScanQualityGate: Sendable {
+struct ScanQualityGate {
     let configuration: DetectorConfiguration
 
     init(configuration: DetectorConfiguration) {

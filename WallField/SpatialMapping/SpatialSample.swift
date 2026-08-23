@@ -2,7 +2,7 @@ import Foundation
 import simd
 
 /// Where the crosshair ray met the locked wall.
-struct WallHit: Sendable, Equatable {
+struct WallHit: Equatable {
     /// Intersection in world space.
     var worldPosition: SIMD3<Float>
     /// Same point expressed in the locked plane anchor's local space, so a
@@ -23,7 +23,7 @@ struct WallHit: Sendable, Equatable {
 ///
 /// These are recorded from the render loop, independently of the sensor stream.
 /// Matching the two is the job of `SpatialSampleBuffer.match(timestamp:tolerance:)`.
-struct SpatialSample: Sendable, Equatable {
+struct SpatialSample: Equatable {
     /// Monotonic timestamp captured when the frame callback fired.
     var timestamp: TimeInterval
     /// Camera pose in world space.
@@ -40,7 +40,7 @@ struct SpatialSample: Sendable, Equatable {
 }
 
 /// A spatial sample matched to a sensor timestamp, with the error that match cost.
-struct SpatialMatch: Sendable, Equatable {
+struct SpatialMatch: Equatable {
     var sample: SpatialSample
     /// `abs(sensorTimestamp - poseTimestamp)`, seconds.
     var timingError: TimeInterval
