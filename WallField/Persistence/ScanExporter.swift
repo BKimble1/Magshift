@@ -5,8 +5,6 @@ struct ExportFile: Sendable, Hashable, Identifiable {
     var id: String { fileName }
     var fileName: String
     var contents: Data
-
-    var byteCount: Int { contents.count }
 }
 
 /// Turns a saved scan into files a person or a spreadsheet can read.

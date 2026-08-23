@@ -12,8 +12,8 @@ reviewer would have to remember:
 * no `try!`, `as!` or `fatalError`, and no implicitly-unwrapped stored
   properties in the app (tests may use the XCTest `setUp` idiom);
 * every source file has a documentation comment before its first type;
-* the app target does not import XCTest, and tests do not import the app's
-  UI-test-only helpers.
+* the app target does not import XCTest;
+* nothing in the app is declared and never used.
 
 Run: ``python3 Tools/audit_sources.py``
 """
@@ -60,6 +60,26 @@ APP_ONLY_PATTERNS = [
 ]
 
 MARKER_PATTERN = re.compile(r"\b(TODO|FIXME|XXX|HACK|PLACEHOLDER|placeholder)\b")
+
+DECLARATION_RE = re.compile(
+    r"^\s*(?:@\w+(?:\([^)]*\))?\s+)*"
+    r"(?:public |internal |private |fileprivate |final |static |nonisolated\(unsafe\) |lazy "
+    r"|mutating |@discardableResult )*"
+    r"(?:(?:struct|enum|class|actor|protocol)\s+(\w+)"
+    r"|(?:static\s+)?(?:let|var|func)\s+(\w+))",
+    re.MULTILINE,
+)
+
+# Declarations something other than this repository's own code calls: SwiftUI and
+# XCTest entry points, protocol requirements of Apple frameworks, and `@main`.
+EXTERNALLY_CALLED = {
+    "body", "makeUIView", "updateUIView", "makeCoordinator", "makeUIViewController",
+    "updateUIViewController", "init", "deinit", "setUp", "tearDown", "setUpWithError",
+    "tearDownWithError", "main", "id", "description", "hashValue", "rawValue",
+    "allCases", "errorDescription", "makeIterator", "session", "WallFieldApp",
+    "sessionWasInterrupted", "sessionInterruptionEnded",
+    "sessionShouldAttemptRelocalization",
+}
 
 # Markers are also banned in comments, which is where they usually hide.
 COMMENT_PATTERNS = [(MARKER_PATTERN, "contains a TODO/FIXME/placeholder marker")]
@@ -139,6 +159,32 @@ def main() -> int:
         audit(path, is_test=False)
     for path in TEST_SOURCES:
         audit(path, is_test=True)
+
+    # Nothing in the app may be declared and never used.
+    #
+    # Occurrences are counted over the raw text of every Swift file, strings and
+    # comments included, so an identifier used only inside a string
+    # interpolation still counts as used.
+    raw = ""
+    declarations: dict[str, str] = {}
+    for path in APP_SOURCES + TEST_SOURCES:
+        with open(path, "r", encoding="utf-8") as handle:
+            source = handle.read()
+        raw += source + "\n"
+        if path not in APP_SOURCES:
+            continue
+        relative = os.path.relpath(path, ROOT)
+        code_text = "\n".join(
+            span.text for span in swiftsource.scan(source) if span.kind == "code"
+        )
+        for match in DECLARATION_RE.finditer(code_text):
+            name = match.group(1) or match.group(2)
+            if name and name not in EXTERNALLY_CALLED:
+                declarations.setdefault(name, relative)
+
+    for name, relative in sorted(declarations.items()):
+        uses = len(re.findall(r"(?<![\w])" + re.escape(name) + r"(?![\w])", raw))
+        check(uses > 1, f"{relative}: '{name}' is declared and never used")
 
     # Every app source must live under one of the declared feature folders.
     allowed = {

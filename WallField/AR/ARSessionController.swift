@@ -95,8 +95,6 @@ final class ARSessionController: ARSpatialProviding {
             .disableGroundingShadows,
         ]
         arView.debugOptions = []
-        arView.automaticallyConfigureSession = false
-        arView.environment.background = .cameraFeed()
     }
 
     // MARK: - Lifecycle

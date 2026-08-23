@@ -32,8 +32,10 @@ struct ARViewContainer: UIViewRepresentable {
     /// The coaching overlay is Apple's own onboarding for world tracking and
     /// plane detection; using it rather than a bespoke animation means users get
     /// the guidance they already know from other AR apps, in their own language.
+    /// It manages its own presentation, so there is no delegate to implement --
+    /// the app only decides whether it may activate.
     @MainActor
-    final class Coordinator: NSObject, ARCoachingOverlayViewDelegate {
+    final class Coordinator {
         private weak var overlay: ARCoachingOverlayView?
 
         func attachCoaching(to view: ARView, session: ARSession) {
@@ -42,7 +44,6 @@ struct ARViewContainer: UIViewRepresentable {
             coaching.session = session
             coaching.goal = .verticalPlane
             coaching.activatesAutomatically = true
-            coaching.delegate = self
             coaching.translatesAutoresizingMaskIntoConstraints = false
             view.addSubview(coaching)
             NSLayoutConstraint.activate([

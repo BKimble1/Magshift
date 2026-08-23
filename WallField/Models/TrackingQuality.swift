@@ -164,16 +164,6 @@ enum QualityReason: String, Codable, Sendable, Hashable, CaseIterable {
         }
     }
 
-    /// Blocking reasons stop placement entirely; advisory reasons only downgrade
-    /// quality metadata.
-    var isBlocking: Bool {
-        switch self {
-        case .extrapolatedIntersection:
-            return false
-        default:
-            return true
-        }
-    }
 }
 
 /// The outcome of evaluating every scan-quality gate for one candidate.
@@ -205,6 +195,4 @@ struct ScanQualityVerdict: Sendable, Equatable {
         for reason in priority where blocking.contains(reason) { return reason }
         return blocking.first ?? advisory.first
     }
-
-    static let accepted = ScanQualityVerdict(blocking: [], advisory: [])
 }

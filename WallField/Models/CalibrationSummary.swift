@@ -37,12 +37,6 @@ struct CalibrationSummary: Codable, Sendable, Hashable {
     /// When calibration completed.
     var completedAt: Date
 
-    var isFloorLimited: Bool { sigmaWasFloored }
-
-    /// A one-line summary for the review screen.
-    var shortDescription: String {
-        "Baseline \(Format.microtesla(baselineMagnitude)), noise \(Format.microtesla(sigma, decimals: 2))"
-    }
 }
 
 /// Why a calibration attempt was refused.

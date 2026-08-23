@@ -65,11 +65,10 @@ struct DeviceCapabilities: Sendable, Equatable {
         }
     }
 
-    /// Requests camera access. Returns the resulting authorization.
-    static func requestCameraAccess() async -> CameraAuthorization {
-        let granted = await AVCaptureDevice.requestAccess(for: .video)
-        return granted ? .authorized : readCameraAuthorization()
-    }
+    // Camera access is never requested explicitly. ARKit presents the system
+    // prompt when the session runs, which is the moment the reason for it is
+    // visible on screen; asking earlier would prompt while the user is still
+    // reading the preparation checklist.
 }
 
 /// Non-identifying device and OS metadata stored with a scan so results can be

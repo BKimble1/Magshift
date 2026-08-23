@@ -165,8 +165,10 @@ struct ScanSummaryContent: View {
                         caption: "Measured, not requested"
                     )
                     StatTile(
-                        label: "Tracking normal",
-                        value: "\(Int((record.quality.trackingNormalFraction * 100).rounded()))%"
+                        label: "Readings placed",
+                        value: "\(Int((record.quality.acceptanceRate * 100).rounded()))%",
+                        caption: "\(record.quality.candidatesAccepted) of "
+                            + "\(record.quality.candidatesProduced) candidates"
                     )
                 }
                 HStack(spacing: Theme.Spacing.medium) {
@@ -177,7 +179,9 @@ struct ScanSummaryContent: View {
                     )
                     StatTile(
                         label: "Scan speed",
-                        value: String(format: "%.2f m/s", record.quality.meanCameraSpeed)
+                        value: String(format: "%.2f m/s", record.quality.meanCameraSpeed),
+                        caption: "Tracking normal "
+                            + "\(Int((record.quality.trackingNormalFraction * 100).rounded()))%"
                     )
                 }
                 if !record.quality.rankedRejections.isEmpty {
@@ -273,7 +277,8 @@ struct ClusterDetailSheet: View {
                                          value: String(format: "x %.2f m, y %.2f m",
                                                        cluster.wallPoint.x, cluster.wallPoint.y))
                                 StatTile(label: "Direction",
-                                         value: cluster.polarity.displayName)
+                                         value: cluster.polarity.displayName,
+                                         systemImage: cluster.polarity.symbol)
                             }
                             HStack(spacing: Theme.Spacing.medium) {
                                 StatTile(label: "Spatial quality",

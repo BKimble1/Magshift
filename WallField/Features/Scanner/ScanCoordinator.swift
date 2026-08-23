@@ -69,8 +69,6 @@ final class ScanCoordinator {
         case finished
         /// Something stopped the scan and the user must decide what to do.
         case blocked(ARSessionProblem)
-
-        var isMeasuring: Bool { self == .scanning }
     }
 
     // MARK: - Dependencies
@@ -119,10 +117,6 @@ final class ScanCoordinator {
 
     var lockedWall: LockedWall? { spatialProvider.lockedWall }
     var targetedWallID: UUID? { spatialProvider.targetedWallID }
-    var targetedWall: DetectedWall? {
-        guard let id = targetedWallID else { return nil }
-        return spatialProvider.detectedWalls.first { $0.id == id }
-    }
     var trackingQuality: TrackingQuality { spatialProvider.trackingQuality }
     var currentHit: WallHit? { spatialProvider.currentHit }
     var availability: MagneticFieldAvailability { fieldService.availability }

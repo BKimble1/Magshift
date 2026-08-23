@@ -24,8 +24,6 @@ struct DetectedWall: @unchecked Sendable, Equatable, Identifiable {
     /// Boundary polygon in the anchor's local space, if ARKit provided one.
     var boundary: [SIMD3<Float>]
 
-    var area: Float { extentX * extentZ }
-
     /// Whether the plane is big enough to be worth offering as a scan surface.
     /// A 30 cm square is about the smallest region a slow hand pass can cover
     /// meaningfully.

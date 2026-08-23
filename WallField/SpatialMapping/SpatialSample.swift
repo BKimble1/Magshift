@@ -73,7 +73,6 @@ struct SpatialSampleBuffer {
     var count: Int { buffer.count }
     var isEmpty: Bool { buffer.isEmpty }
     var newest: SpatialSample? { buffer.last }
-    var oldest: SpatialSample? { buffer.first }
     var samples: [SpatialSample] { buffer.elements }
 
     mutating func append(_ sample: SpatialSample) {

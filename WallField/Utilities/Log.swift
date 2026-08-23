@@ -13,6 +13,5 @@ enum Log {
     static let app = Logger(subsystem: subsystem, category: "app")
     static let sensors = Logger(subsystem: subsystem, category: "sensors")
     static let ar = Logger(subsystem: subsystem, category: "ar")
-    static let detection = Logger(subsystem: subsystem, category: "detection")
     static let persistence = Logger(subsystem: subsystem, category: "persistence")
 }

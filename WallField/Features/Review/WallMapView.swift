@@ -92,9 +92,14 @@ struct WallMapView: View {
                     )
                 )
             if cluster.confidence == .repeated {
+                // The same bright centre the AR marker uses, so a repeated
+                // cluster reads identically in both views.
+                Circle()
+                    .fill(Palette.confirmedCore)
+                    .frame(width: diameter * 0.4, height: diameter * 0.4)
                 Image(systemName: "plus")
-                    .font(.system(size: diameter * 0.4, weight: .bold))
-                    .foregroundStyle(Color(uiColor: .systemBackground))
+                    .font(.system(size: diameter * 0.3, weight: .bold))
+                    .foregroundStyle(Color.black.opacity(0.75))
             }
         }
         .frame(width: diameter, height: diameter)

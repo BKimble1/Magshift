@@ -80,6 +80,8 @@ final class AppEnvironment {
         if RuntimeMode.shouldResetPersistentState() {
             Task { try? await resolvedStore.deleteAll() }
         }
+
+        Log.app.notice("Launched in \(runtimeMode.rawValue, privacy: .public) mode.")
     }
 
     /// UI tests get their own container so they cannot see, or destroy, scans
