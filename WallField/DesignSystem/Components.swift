@@ -184,6 +184,7 @@ struct SafetyReminderBar: View {
         if let action {
             Button(action: action) { content }
                 .buttonStyle(.plain)
+                .accessibilityIdentifier(A11y.safetyBanner)
                 .accessibilityHint("Opens safety and limitations.")
         } else {
             content

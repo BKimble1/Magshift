@@ -9,7 +9,8 @@ reviewer would have to remember:
 * every `@unchecked Sendable` carries a justification comment;
 * no `print(` debugging left behind (the app logs through `Log`);
 * no TODO / FIXME / placeholder markers;
-* no `try!`, `as!`, `fatalError` or implicitly-unwrapped stored properties;
+* no `try!`, `as!` or `fatalError`, and no implicitly-unwrapped stored
+  properties in the app (tests may use the XCTest `setUp` idiom);
 * every source file has a documentation comment before its first type;
 * the app target does not import XCTest, and tests do not import the app's
   UI-test-only helpers.
@@ -48,6 +49,12 @@ CODE_PATTERNS = [
     (re.compile(r"\bas!\s"), "uses as!"),
     (re.compile(r"\bfatalError\s*\("), "uses fatalError"),
     (re.compile(r"\bunsafeBitCast\s*\("), "uses unsafeBitCast"),
+]
+
+# Implicitly unwrapped optionals are banned in the app, but they are the standard
+# XCTest idiom for a system-under-test built in `setUp`, so the rule applies to
+# app sources only.
+APP_ONLY_PATTERNS = [
     (re.compile(r"\b(?:var|let)\s+\w+\s*:\s*[A-Z]\w*!\s*(?:=|$|\n)"),
      "declares an implicitly unwrapped optional"),
 ]
@@ -78,7 +85,8 @@ def audit(path: str, is_test: bool) -> None:
     for span in spans:
         if span.kind != "code":
             continue
-        for pattern, message in CODE_PATTERNS:
+        patterns = CODE_PATTERNS if is_test else CODE_PATTERNS + APP_ONLY_PATTERNS
+        for pattern, message in patterns:
             for match in pattern.finditer(span.text):
                 offset = span.text.count("\n", 0, match.start())
                 failures.append(f"{relative}:{span.line + offset}: {message}")

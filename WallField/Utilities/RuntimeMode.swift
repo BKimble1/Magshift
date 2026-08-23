@@ -24,6 +24,11 @@ enum RuntimeMode: String, Sendable {
     static let demoLaunchArgument = "-WallFieldDemoMode"
     static let resetStateLaunchArgument = "-WallFieldResetState"
 
+    /// Makes the app behave as though the user had refused camera access, so the
+    /// permission-denied recovery path can be exercised by a UI test. Debug
+    /// builds only; there is no way to reach it in a Release build.
+    static let simulateCameraDeniedArgument = "-WallFieldSimulateCameraDenied"
+
     /// User-defaults key backing the Developer toggle in Settings.
     static let developerPreferenceKey = "wallfield.developer.simulatedData"
 
@@ -57,6 +62,18 @@ enum RuntimeMode: String, Sendable {
         #if DEBUG
         return true
         #else
+        return false
+        #endif
+    }
+
+    /// Whether the camera-denied path should be simulated for a UI test.
+    static func shouldSimulateCameraDenied(
+        arguments: [String] = ProcessInfo.processInfo.arguments
+    ) -> Bool {
+        #if DEBUG
+        return arguments.contains(simulateCameraDeniedArgument)
+        #else
+        _ = arguments
         return false
         #endif
     }

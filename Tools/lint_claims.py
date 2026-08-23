@@ -15,6 +15,15 @@ Plus two structural rules: a file that shows the "no strong anomaly" headline
 must also carry the qualifying sentence, and no user-facing string may describe
 a measurement as an object.
 
+Test code and documentation sometimes have to quote the ban list itself. Those
+regions opt out explicitly:
+
+    // lint-allow-banned-phrase: begin
+    ...
+    // lint-allow-banned-phrase: end
+
+and single documentation lines can carry ``lint-allow-banned-phrase`` inline.
+
 Run: ``python3 Tools/lint_claims.py``
 """
 
@@ -108,6 +117,25 @@ def check_text(text: str, where: str) -> None:
                 )
 
 
+ALLOW_BEGIN = "lint-allow-banned-phrase: begin"
+ALLOW_END = "lint-allow-banned-phrase: end"
+
+
+def allowed_line_ranges(source: str) -> list[tuple[int, int]]:
+    """1-based [start, end] line ranges that opt out of the banned-phrase rules."""
+    ranges: list[tuple[int, int]] = []
+    start: int | None = None
+    for number, line in enumerate(source.splitlines(), start=1):
+        if ALLOW_BEGIN in line:
+            start = number
+        elif ALLOW_END in line and start is not None:
+            ranges.append((start, number))
+            start = None
+    if start is not None:
+        ranges.append((start, len(source.splitlines())))
+    return ranges
+
+
 def swift_files() -> list[str]:
     return sorted(
         glob.glob(os.path.join(ROOT, "WallField", "**", "*.swift"), recursive=True)
@@ -125,7 +153,10 @@ def main() -> int:
         with open(path, "r", encoding="utf-8") as handle:
             source = handle.read()
 
+        allowed = allowed_line_ranges(source)
         for line, literal in swiftsource.string_literals(source):
+            if any(start <= line <= end for start, end in allowed):
+                continue
             checked_strings += 1
             check_text(literal, f"{relative}:{line}")
 

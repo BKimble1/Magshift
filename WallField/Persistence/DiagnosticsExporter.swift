@@ -52,28 +52,32 @@ enum DiagnosticsExporter {
     }
 
     static func preamble(for run: DiagnosticRun) -> String {
-        var lines = SafetyCopy.exportHeader.split(separator: "\n").map { "# \($0)" }
-        lines.append("# Diagnostic run: \(run.label)")
-        if !run.notes.isEmpty { lines.append("# Notes: \(run.notes.replacingOccurrences(of: "\n", with: " "))") }
-        lines.append("# Started: \(Format.iso8601.string(from: run.startedAt))")
-        lines.append("# Duration: \(Format.duration(run.duration))   Samples: \(run.samples.count)")
-        lines.append("# Requested rate: \(Format.hertz(run.requestedSampleRate))"
-            + "   Measured rate: \(Format.hertz(run.measuredSampleRate))")
+        let comment = ScanExporter.commentLine
+        var lines = SafetyCopy.exportHeader.split(separator: "\n").map { comment(String($0)) }
+        lines.append(comment("Diagnostic run: \(run.label)"))
+        if !run.notes.isEmpty { lines.append(comment("Notes: \(run.notes)")) }
+        lines.append(comment("Started: \(Format.iso8601.string(from: run.startedAt))"))
+        lines.append(comment("Duration: \(Format.duration(run.duration))   "
+            + "Samples: \(run.samples.count)"))
+        lines.append(comment("Requested rate: \(Format.hertz(run.requestedSampleRate))   "
+            + "Measured rate: \(Format.hertz(run.measuredSampleRate))"))
         if let offset = run.coreMotionClockOffset {
-            lines.append("# Observed systemUptime - CoreMotion timestamp: "
-                + "\(Format.decimal(offset, decimals: 6)) s")
+            lines.append(comment("Observed systemUptime - CoreMotion timestamp: "
+                + "\(Format.decimal(offset, decimals: 6)) s"))
         }
-        lines.append("# Device: \(run.device.model)   OS: \(run.device.systemVersion)")
-        lines.append("# App: \(run.appVersion)   Algorithm: \(run.algorithmVersion)")
+        lines.append(comment("Device: \(run.device.model)   OS: \(run.device.systemVersion)"))
+        lines.append(comment("App: \(run.appVersion)   Algorithm: \(run.algorithmVersion)"))
         if let calibration = run.calibration {
-            lines.append("# Baseline: \(Format.decimal(calibration.baselineMagnitude, decimals: 4)) uT"
-                + "   Sigma: \(Format.decimal(calibration.sigma, decimals: 5)) uT"
-                + "   MAD: \(Format.decimal(calibration.medianAbsoluteDeviation, decimals: 5)) uT")
+            lines.append(comment(
+                "Baseline: \(Format.decimal(calibration.baselineMagnitude, decimals: 4)) uT"
+                    + "   Sigma: \(Format.decimal(calibration.sigma, decimals: 5)) uT"
+                    + "   MAD: \(Format.decimal(calibration.medianAbsoluteDeviation, decimals: 5)) uT"
+            ))
         } else {
-            lines.append("# No baseline calibration was in force for this run.")
+            lines.append(comment("No baseline calibration was in force for this run."))
         }
         if run.isSimulated {
-            lines.append("# SIMULATED DATA - not a measurement of real hardware.")
+            lines.append(comment("SIMULATED DATA - not a measurement of real hardware."))
         }
         return lines.joined(separator: "\n") + "\n"
     }

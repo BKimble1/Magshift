@@ -68,6 +68,7 @@ enum A11y {
     static let homeSettings = "home.settings"
     static let homeHowItWorks = "home.howItWorks"
     static let homeSimulatedBanner = "home.simulatedBanner"
+    static let safetyBanner = "safety.banner"
 
     static let prepChecklistContinue = "prep.continue"
     static let scannerLockWall = "scanner.lockWall"

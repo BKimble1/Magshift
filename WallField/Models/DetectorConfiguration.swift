@@ -96,6 +96,15 @@ struct DetectorConfiguration: Codable, Sendable, Hashable {
     /// would make every subsequent sample infinitely significant.
     var minimumSigma: Double
     /// Time constant, seconds, of the slow baseline that tracks environmental drift.
+    ///
+    /// This is chosen together with `baselineUpdateMaxZScore`. A baseline that
+    /// follows drift with time constant `tau` lags a steady drift of `r` µT/s by
+    /// `r * tau` µT; that lag must stay below the z-score at which adaptation
+    /// stops, or the baseline freezes and ordinary environmental drift
+    /// eventually looks like an anomaly. At 5 s and 3 sigma the detector
+    /// tolerates roughly 0.1 µT/s of drift indefinitely, which is far faster
+    /// than a room drifts, while still leaving a clear gap below the 5 sigma
+    /// detection threshold.
     var baselineTimeConstant: TimeInterval
     /// The slow baseline only absorbs samples below this z-score, so an anomaly
     /// can never quietly become the new normal.
@@ -183,8 +192,8 @@ struct DetectorConfiguration: Codable, Sendable, Hashable {
         persistenceWindow: 5,
         smoothingWindow: 3,
         minimumSigma: 0.15,
-        baselineTimeConstant: 8.0,
-        baselineUpdateMaxZScore: 2.0,
+        baselineTimeConstant: 5.0,
+        baselineUpdateMaxZScore: 3.0,
         gradientLookback: 5,
         refractoryInterval: 0.35,
         calibrationMinimumDuration: 2.5,

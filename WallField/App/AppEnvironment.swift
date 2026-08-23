@@ -40,8 +40,12 @@ final class AppEnvironment {
         scanStore: (any ScanStoring)? = nil
     ) {
         self.runtimeMode = runtimeMode
-        self.capabilities = capabilities
+        var resolvedCapabilities = capabilities
             ?? (runtimeMode.isSimulated ? .simulated() : .current())
+        if RuntimeMode.shouldSimulateCameraDenied() {
+            resolvedCapabilities.cameraAuthorization = .denied
+        }
+        self.capabilities = resolvedCapabilities
         self.simulatedEnvironment = runtimeMode.isSimulated ? SimulatedEnvironment() : nil
 
         let resolvedPreferences = preferences ?? AppPreferences()

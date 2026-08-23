@@ -24,7 +24,9 @@ import Foundation
 ///    physically meaningless wobbles.
 /// 5. **Persistence.** At least `persistenceRequired` of the last
 ///    `persistenceWindow` samples must clear the threshold, so no isolated
-///    sample can ever produce a marker.
+///    sample can ever produce a marker. Nothing may arm until the median window
+///    is full, so a spike arriving in the first samples after calibration
+///    cannot slip past while the smoothing is still warming up.
 /// 6. **Hysteresis.** Once active, the event only ends when the signal falls
 ///    below the lower exit thresholds, so a reading hovering at the boundary
 ///    does not chatter.
@@ -120,9 +122,17 @@ struct OnlineAnomalyDetector: AnomalyDetecting {
         let zScore = RobustStatistics.robustZScore(value: smoothed, centre: baselineValue, sigma: sigmaValue)
         let gradient = computeGradient()
 
-        let clearsEnter = zScore >= configuration.enterZScore
+        // Until the median window is full the smoothing that rejects isolated
+        // spikes is not yet in force, so nothing may arm. Without this, a spike
+        // landing on the first samples after calibration -- exactly when the
+        // window is empty -- would slip past the persistence rule.
+        let isWarmingUp = smoothingSamples.count < configuration.smoothingWindow
+
+        let clearsEnter = !isWarmingUp
+            && zScore >= configuration.enterZScore
             && abs(delta) >= configuration.absoluteFloorMicrotesla
-        let clearsSustain = zScore >= configuration.exitZScore
+        let clearsSustain = !isWarmingUp
+            && zScore >= configuration.exitZScore
             && abs(delta) >= configuration.absoluteFloorMicrotesla * configuration.exitFloorFraction
 
         exceedanceHistory.append(clearsEnter)

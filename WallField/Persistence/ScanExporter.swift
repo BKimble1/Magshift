@@ -45,21 +45,36 @@ enum ScanExporter {
     /// Lines prefixed with `#` before the header row. Spreadsheet apps show them
     /// as ordinary rows, which is the point: the reader sees the limitation
     /// before the numbers.
+    /// A single `#` comment line.
+    ///
+    /// Whitespace is collapsed, because a scan name or note containing a newline
+    /// would otherwise inject an uncommented line into the file and change its
+    /// shape -- a row with the wrong number of columns is worse than an ugly one.
+    static func commentLine(_ text: String) -> String {
+        "# " + text.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+    }
+
     static func csvPreamble(for record: ScanRecord) -> String {
-        var lines = SafetyCopy.exportHeader.split(separator: "\n").map { "# \($0)" }
-        lines.append("# Scan: \(record.displayName)")
-        lines.append("# Recorded: \(Format.iso8601.string(from: record.createdAt))")
-        lines.append("# App version: \(record.appVersion)   Algorithm version: \(record.algorithmVersion)")
-        lines.append("# Device model: \(record.device.model)   OS: \(record.device.systemVersion)")
-        lines.append("# Sensitivity: \(record.sensitivity.displayName)")
-        lines.append("# Baseline: \(Format.decimal(record.calibration.baselineMagnitude, decimals: 3)) uT   "
-            + "Sigma: \(Format.decimal(record.calibration.sigma, decimals: 4)) uT")
+        var lines = SafetyCopy.exportHeader.split(separator: "\n").map { commentLine(String($0)) }
+        lines.append(commentLine("Scan: \(record.displayName)"))
+        lines.append(commentLine("Recorded: \(Format.iso8601.string(from: record.createdAt))"))
+        lines.append(commentLine("App version: \(record.appVersion)"))
+        lines.append(commentLine("Algorithm version: \(record.algorithmVersion)"))
+        lines.append(commentLine("Device model: \(record.device.model)"))
+        lines.append(commentLine("OS: \(record.device.systemVersion)"))
+        lines.append(commentLine("Sensitivity: \(record.sensitivity.displayName)"))
+        lines.append(commentLine(
+            "Baseline: \(Format.decimal(record.calibration.baselineMagnitude, decimals: 3)) uT   "
+                + "Sigma: \(Format.decimal(record.calibration.sigma, decimals: 4)) uT"
+        ))
         if record.isSimulated {
-            lines.append("# SIMULATED DATA - not a measurement of a real wall.")
+            lines.append(commentLine("SIMULATED DATA - not a measurement of a real wall."))
         }
-        lines.append("# All field values are microtesla (uT). All positions are metres.")
-        lines.append("# 'Magnetic anomaly' means a measured change in the magnetic field. "
-            + "It does not identify an object.")
+        lines.append(commentLine("All field values are microtesla (uT). All positions are metres."))
+        lines.append(commentLine(
+            "'Magnetic anomaly' means a measured change in the magnetic field. "
+                + "It does not identify an object."
+        ))
         return lines.joined(separator: "\n") + "\n"
     }
 
