@@ -13,7 +13,8 @@ reviewer would have to remember:
   properties in the app (tests may use the XCTest `setUp` idiom);
 * every source file has a documentation comment before its first type;
 * the app target does not import XCTest;
-* nothing in the app is declared and never used.
+* nothing in the app is declared and never used;
+* braces, parentheses and brackets balance in every file.
 
 Run: ``python3 Tools/audit_sources.py``
 """
@@ -151,6 +152,39 @@ def audit(path: str, is_test: bool) -> None:
 
     if not is_test:
         check("import XCTest" not in source, f"{relative}: app target imports XCTest")
+
+    # Delimiters must balance. Counted over code spans only, so a brace inside a
+    # string literal or a comment cannot mask a real imbalance -- which is
+    # exactly the failure mode a plain `grep -c` would miss.
+    pairs = {"{": "}", "(": ")", "[": "]"}
+    closers = {value: key for key, value in pairs.items()}
+    stack: list[tuple[str, int]] = []
+    unbalanced: str | None = None
+    for span in spans:
+        if span.kind != "code":
+            continue
+        line = span.line
+        for character in span.text:
+            if character == "\n":
+                line += 1
+            elif character in pairs:
+                stack.append((character, line))
+            elif character in closers:
+                if not stack:
+                    unbalanced = unbalanced or f"unexpected '{character}' at line {line}"
+                elif stack[-1][0] != closers[character]:
+                    opener, opened_at = stack[-1]
+                    unbalanced = unbalanced or (
+                        f"'{opener}' opened at line {opened_at} closed by "
+                        f"'{character}' at line {line}"
+                    )
+                    stack.pop()
+                else:
+                    stack.pop()
+    if not unbalanced and stack:
+        opener, opened_at = stack[0]
+        unbalanced = f"'{opener}' opened at line {opened_at} is never closed"
+    check(unbalanced is None, f"{relative}: unbalanced delimiters -- {unbalanced}")
 
 
 def main() -> int:

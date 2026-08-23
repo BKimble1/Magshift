@@ -49,8 +49,7 @@
 		<string>UIInterfaceOrientationPortrait</string>
 	</array>
 
-	<key>UIStatusBarStyle</key>
-	<string>UIStatusBarStyleLightContent</string>
+	<!-- SwiftUI controls the status bar per screen, so no global style is set. -->
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
 
