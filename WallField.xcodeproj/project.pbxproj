@@ -1,0 +1,463 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXFileReference section */
+		94642D4834C74BDB39CCBB72 /* WallField.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "WallField.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		AC40B4547FF9549B4BE51C64 /* WallFieldTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "WallFieldTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		19D691DEA343C26ABBA8CE9C /* WallFieldUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "WallFieldUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		2DC6E0B97511D543CEB2592B /* Shared.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = "Shared.xcconfig"; sourceTree = "<group>"; };
+		99B2136D3E14FBC052F2554F /* Signing.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = "Signing.xcconfig"; sourceTree = "<group>"; };
+		6EAE51CFF07A7FB22705284C /* App-Debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = "App-Debug.xcconfig"; sourceTree = "<group>"; };
+		2AB768932FF537A243B7911E /* App-Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = "App-Release.xcconfig"; sourceTree = "<group>"; };
+		BDEE2B75D24BA8E664D5719C /* WallField-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "WallField-Info.plist"; sourceTree = "<group>"; };
+		45006A629DB6EC41633BAD82 /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "README.md"; sourceTree = "<group>"; };
+		4A36405D7A4F5549C3CD8E01 /* ARCHITECTURE.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "ARCHITECTURE.md"; sourceTree = "<group>"; };
+		DB595C1A1D0B0AFECC1DD02E /* ALGORITHM.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "ALGORITHM.md"; sourceTree = "<group>"; };
+		3B66261EFD465193779D5EF6 /* SAFETY_AND_LIMITATIONS.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "SAFETY_AND_LIMITATIONS.md"; sourceTree = "<group>"; };
+		0D1216802BCCE826A9E19DE0 /* VALIDATION_PROTOCOL.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "VALIDATION_PROTOCOL.md"; sourceTree = "<group>"; };
+		0A4A1E0E273535A4812E16E0 /* APP_STORE_PREP.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "APP_STORE_PREP.md"; sourceTree = "<group>"; };
+		1220117B448E1137D3A6DAB2 /* PRIVACY.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "PRIVACY.md"; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		F367D685901365F1425AE141 /* WallField */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = WallField;
+			sourceTree = "<group>";
+		};
+		5563010FECDC40BB96EF2BC8 /* WallFieldTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = WallFieldTests;
+			sourceTree = "<group>";
+		};
+		A4FA70BD49A70AF41E2044F8 /* WallFieldUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = WallFieldUITests;
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		1D3BDBFF661717AE528D90D2 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C6AD71F362E6BB8D1CE54392 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		4A346FB2F8D9AD11C3E30B7F /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		38869EC9323F8AEE3AAABDEC = {
+			isa = PBXGroup;
+			children = (
+				45006A629DB6EC41633BAD82 /* README.md */,
+				202133E3CA86F1BA79C4FF14 /* Config */,
+				A84D5532EF6A0D9795431CAD /* Docs */,
+				F367D685901365F1425AE141 /* WallField */,
+				5563010FECDC40BB96EF2BC8 /* WallFieldTests */,
+				A4FA70BD49A70AF41E2044F8 /* WallFieldUITests */,
+				F28B36A8B1F783D456929DC2 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		202133E3CA86F1BA79C4FF14 /* Config */ = {
+			isa = PBXGroup;
+			children = (
+				2DC6E0B97511D543CEB2592B /* Shared.xcconfig */,
+				99B2136D3E14FBC052F2554F /* Signing.xcconfig */,
+				6EAE51CFF07A7FB22705284C /* App-Debug.xcconfig */,
+				2AB768932FF537A243B7911E /* App-Release.xcconfig */,
+				BDEE2B75D24BA8E664D5719C /* WallField-Info.plist */,
+			);
+			path = Config;
+			sourceTree = "<group>";
+		};
+		A84D5532EF6A0D9795431CAD /* Docs */ = {
+			isa = PBXGroup;
+			children = (
+				4A36405D7A4F5549C3CD8E01 /* ARCHITECTURE.md */,
+				DB595C1A1D0B0AFECC1DD02E /* ALGORITHM.md */,
+				3B66261EFD465193779D5EF6 /* SAFETY_AND_LIMITATIONS.md */,
+				0D1216802BCCE826A9E19DE0 /* VALIDATION_PROTOCOL.md */,
+				0A4A1E0E273535A4812E16E0 /* APP_STORE_PREP.md */,
+				1220117B448E1137D3A6DAB2 /* PRIVACY.md */,
+			);
+			path = Docs;
+			sourceTree = "<group>";
+		};
+		F28B36A8B1F783D456929DC2 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				94642D4834C74BDB39CCBB72 /* WallField.app */,
+				AC40B4547FF9549B4BE51C64 /* WallFieldTests.xctest */,
+				19D691DEA343C26ABBA8CE9C /* WallFieldUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		154B8B18D6C70B8B54AC53D8 /* WallField */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = BC41A7AC7CDA5D3D832E6B2D /* Build configuration list for PBXNativeTarget "WallField" */;
+			buildPhases = (
+				7E31AB8027A204A82A86C925 /* Sources */,
+				1D3BDBFF661717AE528D90D2 /* Frameworks */,
+				BA1F44887B87A85247659994 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				F367D685901365F1425AE141 /* WallField */,
+			);
+			name = WallField;
+			productName = WallField;
+			productReference = 94642D4834C74BDB39CCBB72 /* WallField.app */;
+			productType = "com.apple.product-type.application";
+		};
+		4B624D4D5399097B3FF7FB0A /* WallFieldTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C61B1FF1F151CA9A95C43E3B /* Build configuration list for PBXNativeTarget "WallFieldTests" */;
+			buildPhases = (
+				61F60074FCC93F902C6EAA14 /* Sources */,
+				C6AD71F362E6BB8D1CE54392 /* Frameworks */,
+				89201100A33F9475DBB0451C /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				ABBF88F8AFA60071F0106170 /* PBXTargetDependency WallField */,
+			);
+			fileSystemSynchronizedGroups = (
+				5563010FECDC40BB96EF2BC8 /* WallFieldTests */,
+			);
+			name = WallFieldTests;
+			productName = WallFieldTests;
+			productReference = AC40B4547FF9549B4BE51C64 /* WallFieldTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		BDD6F50F077127AD3BA3E1B3 /* WallFieldUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = EB6CE6016C2BFA9A2A3F84E1 /* Build configuration list for PBXNativeTarget "WallFieldUITests" */;
+			buildPhases = (
+				419A82115B6B6B55F9F265F1 /* Sources */,
+				4A346FB2F8D9AD11C3E30B7F /* Frameworks */,
+				AC80D1301746B904C1585DAB /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				0353FFA3353E60E16B70AC8E /* PBXTargetDependency WallField */,
+			);
+			fileSystemSynchronizedGroups = (
+				A4FA70BD49A70AF41E2044F8 /* WallFieldUITests */,
+			);
+			name = WallFieldUITests;
+			productName = WallFieldUITests;
+			productReference = 19D691DEA343C26ABBA8CE9C /* WallFieldUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		34F3ACA434CFE0B8B8E1C8DF /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1600;
+				LastUpgradeCheck = 1600;
+				ORGANIZATIONNAME = "Idlery Services LLC";
+				TargetAttributes = {
+					154B8B18D6C70B8B54AC53D8 = {
+						CreatedOnToolsVersion = 16.0;
+					};
+					4B624D4D5399097B3FF7FB0A = {
+						CreatedOnToolsVersion = 16.0;
+						TestTargetID = 154B8B18D6C70B8B54AC53D8;
+					};
+					BDD6F50F077127AD3BA3E1B3 = {
+						CreatedOnToolsVersion = 16.0;
+						TestTargetID = 154B8B18D6C70B8B54AC53D8;
+					};
+				};
+			};
+			buildConfigurationList = CE6C3DB8BBD9678C82FACB13 /* Build configuration list for PBXProject "WallField" */;
+			compatibilityVersion = "Xcode 15.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 38869EC9323F8AEE3AAABDEC;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = F28B36A8B1F783D456929DC2 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				154B8B18D6C70B8B54AC53D8 /* WallField */,
+				4B624D4D5399097B3FF7FB0A /* WallFieldTests */,
+				BDD6F50F077127AD3BA3E1B3 /* WallFieldUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		BA1F44887B87A85247659994 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		89201100A33F9475DBB0451C /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AC80D1301746B904C1585DAB /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		7E31AB8027A204A82A86C925 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		61F60074FCC93F902C6EAA14 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		419A82115B6B6B55F9F265F1 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXContainerItemProxy section */
+		A7CB12A606BC2F244D45637C /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 34F3ACA434CFE0B8B8E1C8DF /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 154B8B18D6C70B8B54AC53D8;
+			remoteInfo = WallField;
+		};
+		84AAEA90EB58FC52A20B86EB /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 34F3ACA434CFE0B8B8E1C8DF /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 154B8B18D6C70B8B54AC53D8;
+			remoteInfo = WallField;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXTargetDependency section */
+		ABBF88F8AFA60071F0106170 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 154B8B18D6C70B8B54AC53D8 /* WallField */;
+			targetProxy = A7CB12A606BC2F244D45637C /* PBXContainerItemProxy */;
+		};
+		0353FFA3353E60E16B70AC8E /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 154B8B18D6C70B8B54AC53D8 /* WallField */;
+			targetProxy = 84AAEA90EB58FC52A20B86EB /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		FE9C6F13DA4A784FD3603107 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 6EAE51CFF07A7FB22705284C /* App-Debug.xcconfig */;
+			buildSettings = {
+			};
+			name = Debug;
+		};
+		FF7D1084A3E9EE5ED17CFEDE /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 2AB768932FF537A243B7911E /* App-Release.xcconfig */;
+			buildSettings = {
+			};
+			name = Release;
+		};
+		C1319AED605CE3FCF0611059 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Config/WallField-Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+			};
+			name = Debug;
+		};
+		E4430DD1DCF720ADC2C1BDD4 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Config/WallField-Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+			};
+			name = Release;
+		};
+		D164E6F531451807D9C2FC3B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.idlery.wallfield.unittests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/WallField.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/WallField";
+			};
+			name = Debug;
+		};
+		D6FED0069119CB239E3659C3 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.idlery.wallfield.unittests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/WallField.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/WallField";
+			};
+			name = Release;
+		};
+		AF6AAA6B149CF65355B5F6A1 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.idlery.wallfield.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				TEST_TARGET_NAME = WallField;
+			};
+			name = Debug;
+		};
+		FE6D021BB1513F74E8B33353 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.idlery.wallfield.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				TEST_TARGET_NAME = WallField;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		CE6C3DB8BBD9678C82FACB13 /* Build configuration list for PBXProject "WallField" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				FE9C6F13DA4A784FD3603107 /* Debug */,
+				FF7D1084A3E9EE5ED17CFEDE /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		BC41A7AC7CDA5D3D832E6B2D /* Build configuration list for PBXNativeTarget "WallField" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C1319AED605CE3FCF0611059 /* Debug */,
+				E4430DD1DCF720ADC2C1BDD4 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		C61B1FF1F151CA9A95C43E3B /* Build configuration list for PBXNativeTarget "WallFieldTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D164E6F531451807D9C2FC3B /* Debug */,
+				D6FED0069119CB239E3659C3 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		EB6CE6016C2BFA9A2A3F84E1 /* Build configuration list for PBXNativeTarget "WallFieldUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AF6AAA6B149CF65355B5F6A1 /* Debug */,
+				FE6D021BB1513F74E8B33353 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+	};
+	rootObject = 34F3ACA434CFE0B8B8E1C8DF /* Project object */;
+}

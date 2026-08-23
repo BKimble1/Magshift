@@ -1,0 +1,19 @@
+// Signing configuration for WallField.
+//
+// This file is intentionally EMPTY of any real Apple Team ID or certificate.
+// Never commit a Team ID or signing certificate to this repository.
+//
+// To sign locally, either:
+//   1. Open WallField.xcodeproj > target "WallField" > Signing & Capabilities,
+//      tick "Automatically manage signing" and pick your team; or
+//   2. Create Config/Signing.local.xcconfig (git-ignored) containing:
+//         DEVELOPMENT_TEAM = YOURTEAMID
+//         PRODUCT_BUNDLE_IDENTIFIER = com.yourcompany.wallfield
+//
+// The optional include below picks that local file up automatically if present.
+
+DEVELOPMENT_TEAM =
+CODE_SIGN_STYLE = Automatic
+PRODUCT_BUNDLE_IDENTIFIER = com.idlery.wallfield
+
+#include? "Signing.local.xcconfig"
