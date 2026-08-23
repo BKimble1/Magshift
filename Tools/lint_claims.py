@@ -189,11 +189,13 @@ def main() -> int:
         with open(path, "r", encoding="utf-8") as handle:
             body = handle.read()
         checked_files += 1
-        # Documentation quotes the banned list itself in APP_STORE_PREP; those
-        # lines are explicitly marked so the linter can skip them.
+        # Documentation sometimes has to quote the ban list itself. Those lines
+        # opt out inline, or a region opts out with the begin/end markers.
+        allowed = allowed_line_ranges(body)
         kept = [
-            line for line in body.splitlines()
+            line for number, line in enumerate(body.splitlines(), start=1)
             if "lint-allow-banned-phrase" not in line
+            and not any(start <= number <= end for start, end in allowed)
         ]
         check_text("\n".join(kept), relative)
 
