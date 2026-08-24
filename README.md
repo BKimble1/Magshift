@@ -163,9 +163,9 @@ first run, add these under **Settings → Secrets and variables → Actions**:
 | `APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD` | the password used when exporting it |
 | `APPLE_PROVISIONING_PROFILE` | base64 of the App Store `.mobileprovision` |
 | `APPLE_TEAM_ID` | 10-character Apple Developer Team ID |
-| `APP_STORE_CONNECT_KEY_ID` | App Store Connect API key ID |
-| `APP_STORE_CONNECT_ISSUER_ID` | App Store Connect API issuer ID |
-| `APP_STORE_CONNECT_PRIVATE_KEY` | contents of the `AuthKey_*.p8`, including its BEGIN/END lines |
+| `ASC_KEY_ID` | App Store Connect API key ID |
+| `ASC_ISSUER_ID` | App Store Connect API issuer ID |
+| `ASC_PRIVATE_KEY` | contents of the `AuthKey_*.p8`, including its BEGIN/END lines |
 
 The preflight job names every one that is missing, so a misconfiguration costs
 one fast job rather than an hour of building. `CFBundleVersion` is the workflow

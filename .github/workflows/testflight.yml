@@ -17,9 +17,9 @@
 #   APPLE_PROVISIONING_PROFILE          base64 of the App Store .mobileprovision
 #                                       for com.idlery.magshift
 #   APPLE_TEAM_ID                       10-character Apple Developer Team ID
-#   APP_STORE_CONNECT_KEY_ID            App Store Connect API key ID
-#   APP_STORE_CONNECT_ISSUER_ID         App Store Connect API issuer ID
-#   APP_STORE_CONNECT_PRIVATE_KEY       full contents of the AuthKey_*.p8 file,
+#   ASC_KEY_ID                          App Store Connect API key ID
+#   ASC_ISSUER_ID                       App Store Connect API issuer ID
+#   ASC_PRIVATE_KEY                     full contents of the AuthKey_*.p8 file,
 #                                       including the BEGIN/END lines
 #
 # OPTIONAL REPOSITORY VARIABLE
@@ -79,9 +79,9 @@ jobs:
           APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD }}
           APPLE_PROVISIONING_PROFILE: ${{ secrets.APPLE_PROVISIONING_PROFILE }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
-          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
-          APP_STORE_CONNECT_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
         run: |
           set -euo pipefail
           missing=""
@@ -90,9 +90,9 @@ jobs:
             APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD \
             APPLE_PROVISIONING_PROFILE \
             APPLE_TEAM_ID \
-            APP_STORE_CONNECT_KEY_ID \
-            APP_STORE_CONNECT_ISSUER_ID \
-            APP_STORE_CONNECT_PRIVATE_KEY
+            ASC_KEY_ID \
+            ASC_ISSUER_ID \
+            ASC_PRIVATE_KEY
           do
             # Only ever tests emptiness. No secret value is printed anywhere.
             if [ -z "${!name:-}" ]; then
@@ -413,8 +413,8 @@ jobs:
 
       - name: Install the App Store Connect API key
         env:
-          KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
-          PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+          KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
         run: |
           set -euo pipefail
           # altool looks the key up by ID in this directory.
@@ -426,8 +426,8 @@ jobs:
 
       - name: Validate with App Store Connect
         env:
-          KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
-          ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
         run: |
           set -euo pipefail
           # Validation is a free dry run: it catches a bad bundle id, a missing
@@ -440,8 +440,8 @@ jobs:
 
       - name: Upload to TestFlight
         env:
-          KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
-          ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
         run: |
           set -euo pipefail
           xcrun altool --upload-app \

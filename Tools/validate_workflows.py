@@ -68,9 +68,9 @@ EXPECTED_SECRETS = {
     "APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD",
     "APPLE_PROVISIONING_PROFILE",
     "APPLE_TEAM_ID",
-    "APP_STORE_CONNECT_KEY_ID",
-    "APP_STORE_CONNECT_ISSUER_ID",
-    "APP_STORE_CONNECT_PRIVATE_KEY",
+    "ASC_KEY_ID",
+    "ASC_ISSUER_ID",
+    "ASC_PRIVATE_KEY",
 }
 
 # Frameworks and symbols that would make `ITSAppUsesNonExemptEncryption = false`
