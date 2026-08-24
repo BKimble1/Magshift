@@ -1,0 +1,481 @@
+# Signed App Store build, uploaded to App Store Connect and TestFlight.
+#
+# Manual only -- `workflow_dispatch` is the sole trigger, so no push, tag or
+# merge can ship a build. Releasing is a decision, not a side effect.
+#
+# ---------------------------------------------------------------------------
+# REQUIRED REPOSITORY SECRETS
+#
+# Settings -> Secrets and variables -> Actions -> New repository secret.
+# The "Preflight" step below names every one that is missing, so a
+# misconfiguration costs one fast job rather than a full build.
+#
+#   APPLE_DISTRIBUTION_CERTIFICATE      base64 of your Apple Distribution .p12
+#                                       (base64 -i cert.p12 | pbcopy)
+#   APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD
+#                                       the password set when exporting the .p12
+#   APPLE_PROVISIONING_PROFILE          base64 of the App Store .mobileprovision
+#                                       for com.idlery.magshift
+#   APPLE_TEAM_ID                       10-character Apple Developer Team ID
+#   APP_STORE_CONNECT_KEY_ID            App Store Connect API key ID
+#   APP_STORE_CONNECT_ISSUER_ID         App Store Connect API issuer ID
+#   APP_STORE_CONNECT_PRIVATE_KEY       full contents of the AuthKey_*.p8 file,
+#                                       including the BEGIN/END lines
+#
+# OPTIONAL REPOSITORY VARIABLE
+#
+#   BUILD_NUMBER_OFFSET   Added to the run number to form CFBundleVersion. Set
+#                         it once to the highest build number already in App
+#                         Store Connect if builds were uploaded by anything
+#                         other than this workflow, so numbering stays ahead.
+#
+# Nothing here is written back into the repository: the build number is passed
+# to xcodebuild on the command line, which has the highest precedence in
+# Xcode's build-setting hierarchy, so Config/Shared.xcconfig is left alone.
+# ---------------------------------------------------------------------------
+name: TestFlight
+
+on:
+  workflow_dispatch:
+    inputs:
+      runner:
+        description: "Runner image. Must carry Xcode 26 or newer."
+        type: string
+        required: false
+        default: macos-15
+      build_number:
+        description: "Force a specific CFBundleVersion. Leave blank to derive it from the run number."
+        type: string
+        required: false
+        default: ""
+
+# Two releases building at once would race for build numbers, so they queue
+# instead. In-progress runs are never cancelled: a half-finished upload is worse
+# than a slow one.
+concurrency:
+  group: testflight
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  XCODE_PROJECT: WallField.xcodeproj
+  XCODE_SCHEME: WallField
+  BUNDLE_ID: com.idlery.magshift
+  MINIMUM_XCODE_VERSION: "26.0"
+  MINIMUM_IOS_SDK_VERSION: "26.0"
+
+jobs:
+  # Fails in seconds on a missing secret, before a macOS runner is claimed or
+  # the test suite is run.
+  preflight:
+    name: Preflight
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check that every required secret is present
+        env:
+          APPLE_DISTRIBUTION_CERTIFICATE: ${{ secrets.APPLE_DISTRIBUTION_CERTIFICATE }}
+          APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD }}
+          APPLE_PROVISIONING_PROFILE: ${{ secrets.APPLE_PROVISIONING_PROFILE }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          missing=""
+          for name in \
+            APPLE_DISTRIBUTION_CERTIFICATE \
+            APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD \
+            APPLE_PROVISIONING_PROFILE \
+            APPLE_TEAM_ID \
+            APP_STORE_CONNECT_KEY_ID \
+            APP_STORE_CONNECT_ISSUER_ID \
+            APP_STORE_CONNECT_PRIVATE_KEY
+          do
+            # Only ever tests emptiness. No secret value is printed anywhere.
+            if [ -z "${!name:-}" ]; then
+              missing="$missing  $name"$'\n'
+            fi
+          done
+
+          if [ -n "$missing" ]; then
+            {
+              echo "ERROR: these repository secrets are not set:"
+              printf '%s' "$missing"
+              echo "Add them under Settings -> Secrets and variables -> Actions."
+              echo "The header of .github/workflows/testflight.yml says what each one is."
+            } >&2
+            exit 1
+          fi
+          echo "All seven required secrets are present."
+
+  # A release is never cut from a red tree. This is the same workflow that runs
+  # on every push, called rather than copied, so the two cannot drift.
+  verify:
+    name: Verify
+    needs: preflight
+    uses: ./.github/workflows/tests.yml
+    with:
+      runner: ${{ inputs.runner }}
+
+  release:
+    name: Archive and upload
+    needs: verify
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select and verify the Xcode toolchain
+        run: Tools/select_xcode.sh >> "$GITHUB_ENV"
+
+      - name: Choose a build number
+        env:
+          FORCED_BUILD_NUMBER: ${{ inputs.build_number }}
+          BUILD_NUMBER_OFFSET: ${{ vars.BUILD_NUMBER_OFFSET }}
+        run: |
+          set -euo pipefail
+          if [ -n "$FORCED_BUILD_NUMBER" ]; then
+            case "$FORCED_BUILD_NUMBER" in
+              ''|*[!0-9]*)
+                echo "ERROR: build_number must be a positive integer, got '$FORCED_BUILD_NUMBER'." >&2
+                exit 1 ;;
+            esac
+            build_number="$FORCED_BUILD_NUMBER"
+            echo "Using the build number given to this run: $build_number"
+          else
+            # GITHUB_RUN_NUMBER is per-workflow and strictly increasing, which
+            # is what App Store Connect requires. The offset exists for the case
+            # where builds already exist that this workflow did not upload.
+            offset="${BUILD_NUMBER_OFFSET:-0}"
+            case "$offset" in
+              ''|*[!0-9]*) offset=0 ;;
+            esac
+            build_number="$((GITHUB_RUN_NUMBER + offset))"
+            echo "Run $GITHUB_RUN_NUMBER plus offset $offset gives build number $build_number"
+          fi
+          echo "WALLFIELD_BUILD_NUMBER=$build_number" >> "$GITHUB_ENV"
+
+      - name: Import the signing certificate and profile
+        env:
+          CERTIFICATE_BASE64: ${{ secrets.APPLE_DISTRIBUTION_CERTIFICATE }}
+          CERTIFICATE_PASSWORD: ${{ secrets.APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD }}
+          PROFILE_BASE64: ${{ secrets.APPLE_PROVISIONING_PROFILE }}
+        run: |
+          set -euo pipefail
+
+          # A dedicated keychain, created here and destroyed in the final step,
+          # rather than the runner's login keychain. Runners are ephemeral, but
+          # a build should not depend on that for its secret handling.
+          keychain="$RUNNER_TEMP/wallfield-signing.keychain-db"
+          keychain_password="$(openssl rand -base64 24)"
+          echo "SIGNING_KEYCHAIN=$keychain" >> "$GITHUB_ENV"
+
+          security create-keychain -p "$keychain_password" "$keychain"
+          # Six hours, comfortably past the job timeout: a keychain that
+          # re-locks mid-archive fails the build with a signing error that says
+          # nothing about the real cause.
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+
+          certificate="$RUNNER_TEMP/distribution.p12"
+          printf '%s' "$CERTIFICATE_BASE64" | base64 --decode > "$certificate"
+
+          # -A is deliberately NOT used: only codesign is allowed to use the key,
+          # rather than every tool on the machine.
+          security import "$certificate" \
+            -P "$CERTIFICATE_PASSWORD" \
+            -k "$keychain" \
+            -t cert -f pkcs12 \
+            -T /usr/bin/codesign
+          rm -f "$certificate"
+
+          # Lets codesign use the key without an interactive prompt, which would
+          # otherwise hang the runner until the job times out.
+          security set-key-partition-list \
+            -S apple-tool:,apple:,codesign: \
+            -s -k "$keychain_password" "$keychain" > /dev/null
+
+          # Put the new keychain first, but keep the system keychain in the
+          # search list so Apple's intermediate certificates still resolve.
+          security list-keychains -d user -s "$keychain" login.keychain-db
+          security default-keychain -s "$keychain"
+
+          identities="$(security find-identity -v -p codesigning "$keychain")"
+          echo "--- Signing identities in the build keychain ---"
+          echo "$identities"
+
+          # Piping into `head` would let it close the pipe early; under
+          # `pipefail` that is a failed command substitution, and `set -e` would
+          # end the step before the explanation below could be printed.
+          matches="$(printf '%s\n' "$identities" \
+            | sed -n 's/.*"\(Apple Distribution[^"]*\)".*/\1/p')"
+          identity="${matches%%$'\n'*}"
+          if [ -z "$identity" ]; then
+            {
+              echo "ERROR: the imported certificate is not an Apple Distribution identity."
+              echo "A development certificate cannot sign an App Store build. Export the"
+              echo "Apple Distribution certificate from Keychain Access as a .p12 and set"
+              echo "APPLE_DISTRIBUTION_CERTIFICATE to its base64."
+            } >&2
+            exit 1
+          fi
+          echo "SIGNING_IDENTITY=$identity" >> "$GITHUB_ENV"
+          echo "Signing identity: $identity"
+
+          # Install the provisioning profile where Xcode looks for it.
+          profile="$RUNNER_TEMP/profile.mobileprovision"
+          printf '%s' "$PROFILE_BASE64" | base64 --decode > "$profile"
+
+          # A .mobileprovision is a CMS-signed plist, so the plist has to be
+          # extracted before anything can be read out of it.
+          plist="$RUNNER_TEMP/profile.plist"
+          security cms -D -i "$profile" > "$plist"
+
+          profile_name="$(/usr/libexec/PlistBuddy -c "Print :Name" "$plist")"
+          profile_uuid="$(/usr/libexec/PlistBuddy -c "Print :UUID" "$plist")"
+          profile_app_id="$(/usr/libexec/PlistBuddy -c "Print :Entitlements:application-identifier" "$plist")"
+          profile_expiry="$(/usr/libexec/PlistBuddy -c "Print :ExpirationDate" "$plist")"
+
+          echo "Profile: $profile_name ($profile_uuid)"
+          echo "Application identifier: $profile_app_id"
+          echo "Expires: $profile_expiry"
+
+          # The application identifier is TEAMID.bundle.id, so this catches a
+          # profile for the wrong app before an hour of building.
+          case "$profile_app_id" in
+            *".$BUNDLE_ID")
+              ;;
+            *)
+              echo "ERROR: the profile is for '$profile_app_id', not '$BUNDLE_ID'." >&2
+              exit 1 ;;
+          esac
+
+          # An App Store profile has no provisioned devices and is not for
+          # development. Catching the wrong profile type here is far cheaper
+          # than having App Store Connect reject the upload.
+          if /usr/libexec/PlistBuddy -c "Print :ProvisionedDevices" "$plist" > /dev/null 2>&1; then
+            {
+              echo "ERROR: this profile lists provisioned devices, so it is a development"
+              echo "or ad-hoc profile. TestFlight needs an App Store distribution profile."
+            } >&2
+            exit 1
+          fi
+
+          destination="$HOME/Library/MobileDevice/Provisioning Profiles"
+          mkdir -p "$destination"
+          cp "$profile" "$destination/$profile_uuid.mobileprovision"
+          rm -f "$profile" "$plist"
+
+          echo "PROVISIONING_PROFILE_NAME=$profile_name" >> "$GITHUB_ENV"
+
+      - name: Write the export options
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          plist=build/ExportOptions.plist
+          rm -f "$plist"
+
+          # Built with plutil and PlistBuddy rather than a heredoc: a heredoc
+          # inside a YAML block scalar cannot start at column 0, and an XML
+          # declaration preceded by whitespace is not a valid document.
+          plutil -create xml1 "$plist"
+          add() { /usr/libexec/PlistBuddy -c "Add $*" "$plist"; }
+
+          add ":method string app-store-connect"
+          add ":destination string export"
+          add ":signingStyle string manual"
+          add ":teamID string $APPLE_TEAM_ID"
+          add ":signingCertificate string $SIGNING_IDENTITY"
+          add ":uploadSymbols bool true"
+          # Must stay false, or Xcode replaces the build number chosen above
+          # with one of its own.
+          add ":manageAppVersionAndBuildNumber bool false"
+          add ":provisioningProfiles dict"
+          add ":provisioningProfiles:$BUNDLE_ID string $PROVISIONING_PROFILE_NAME"
+
+          echo "--- Export options ---"
+          plutil -p "$plist"
+
+          # This build must stay eligible for App Store submission later, so the
+          # internal-testing-only export must never be set. Nothing above sets
+          # it; this asserts that nothing else did either.
+          if /usr/libexec/PlistBuddy -c "Print :testFlightInternalTestingOnly" \
+              "$plist" > /dev/null 2>&1; then
+            echo "ERROR: testFlightInternalTestingOnly is set. That produces a build" >&2
+            echo "which can never be submitted to the App Store." >&2
+            exit 1
+          fi
+
+          # Assert the two settings the upload depends on actually landed.
+          [ "$(/usr/libexec/PlistBuddy -c "Print :method" "$plist")" = "app-store-connect" ]
+          [ "$(/usr/libexec/PlistBuddy -c "Print :manageAppVersionAndBuildNumber" "$plist")" = "false" ]
+
+      - name: Archive
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          mkdir -p build/logs
+
+          # CURRENT_PROJECT_VERSION is passed on the command line, which has the
+          # highest precedence in Xcode's build-setting hierarchy, so it
+          # overrides Config/Shared.xcconfig without the CI mutating the
+          # repository. Info.plist maps CFBundleVersion to it.
+          set -o pipefail
+          NSUnbufferedIO=YES xcodebuild archive \
+            -project "$XCODE_PROJECT" \
+            -scheme "$XCODE_SCHEME" \
+            -configuration Release \
+            -destination "generic/platform=iOS" \
+            -archivePath build/ios/WallField.xcarchive \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGN_STYLE=Manual \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            CODE_SIGN_IDENTITY="$SIGNING_IDENTITY" \
+            PROVISIONING_PROFILE_SPECIFIER="$PROVISIONING_PROFILE_NAME" \
+            CURRENT_PROJECT_VERSION="$WALLFIELD_BUILD_NUMBER" \
+            OTHER_CODE_SIGN_FLAGS="--keychain $SIGNING_KEYCHAIN" \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            | tee build/logs/archive.log
+
+      - name: Export the App Store IPA
+        run: |
+          set -euo pipefail
+          mkdir -p build/logs
+          set -o pipefail
+          NSUnbufferedIO=YES xcodebuild -exportArchive \
+            -archivePath build/ios/WallField.xcarchive \
+            -exportOptionsPlist build/ExportOptions.plist \
+            -exportPath build/ios/ipa \
+            | tee build/logs/export.log
+
+      - name: Verify the IPA before uploading
+        run: |
+          set -euo pipefail
+
+          # A glob rather than `find | head`, for the reason given at the
+          # signing identity above, and because `find` on a directory that was
+          # never created exits non-zero.
+          ipa=""
+          for candidate in build/ios/ipa/*.ipa; do
+            [ -f "$candidate" ] || continue
+            ipa="$candidate"
+            break
+          done
+          if [ -z "$ipa" ]; then
+            echo "ERROR: no IPA was produced." >&2
+            exit 1
+          fi
+          echo "IPA: $ipa"
+          echo "WALLFIELD_IPA=$ipa" >> "$GITHUB_ENV"
+
+          rm -rf build/verify && mkdir -p build/verify
+          unzip -o -j "$ipa" 'Payload/*.app/Info.plist' -d build/verify > /dev/null
+          plutil -convert xml1 build/verify/Info.plist
+          echo "--- Shipped Info.plist ---"
+          plutil -p build/verify/Info.plist
+          echo
+
+          read_key() { /usr/libexec/PlistBuddy -c "Print :$1" build/verify/Info.plist; }
+
+          built_bundle_id="$(read_key CFBundleIdentifier)"
+          built_version="$(read_key CFBundleVersion)"
+          built_short_version="$(read_key CFBundleShortVersionString)"
+
+          if [ "$built_bundle_id" != "$BUNDLE_ID" ]; then
+            echo "ERROR: built bundle id is $built_bundle_id, expected $BUNDLE_ID." >&2
+            exit 1
+          fi
+          if [ "$built_version" != "$WALLFIELD_BUILD_NUMBER" ]; then
+            echo "ERROR: built CFBundleVersion is $built_version, expected $WALLFIELD_BUILD_NUMBER." >&2
+            exit 1
+          fi
+
+          # WallField uses no encryption of any kind, so this key is declared
+          # false in Config/WallField-Info.plist. Asserting it reached the
+          # shipped binary avoids the compliance question stalling every
+          # TestFlight build.
+          if ! encryption="$(read_key ITSAppUsesNonExemptEncryption 2>/dev/null)"; then
+            echo "ERROR: ITSAppUsesNonExemptEncryption is missing from the shipped Info.plist." >&2
+            exit 1
+          fi
+          if [ "$encryption" != "false" ]; then
+            echo "ERROR: ITSAppUsesNonExemptEncryption is '$encryption', expected false." >&2
+            exit 1
+          fi
+
+          echo "Verified $built_bundle_id $built_short_version ($built_version), export compliance declared."
+
+      - name: Install the App Store Connect API key
+        env:
+          KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          # altool looks the key up by ID in this directory.
+          directory="$HOME/.appstoreconnect/private_keys"
+          mkdir -p "$directory"
+          printf '%s\n' "$PRIVATE_KEY" > "$directory/AuthKey_$KEY_ID.p8"
+          chmod 600 "$directory/AuthKey_$KEY_ID.p8"
+          echo "Installed AuthKey_$KEY_ID.p8"
+
+      - name: Validate with App Store Connect
+        env:
+          KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          # Validation is a free dry run: it catches a bad bundle id, a missing
+          # app record or a duplicate build number without consuming the upload.
+          xcrun altool --validate-app \
+            --type ios \
+            --file "$WALLFIELD_IPA" \
+            --apiKey "$KEY_ID" \
+            --apiIssuer "$ISSUER_ID"
+
+      - name: Upload to TestFlight
+        env:
+          KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          xcrun altool --upload-app \
+            --type ios \
+            --file "$WALLFIELD_IPA" \
+            --apiKey "$KEY_ID" \
+            --apiIssuer "$ISSUER_ID"
+
+          echo "Uploaded build $WALLFIELD_BUILD_NUMBER."
+          echo "App Store Connect processes it before it appears in TestFlight;"
+          echo "that usually takes a few minutes."
+
+      - name: Upload the IPA and symbols
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wallfield-${{ env.WALLFIELD_BUILD_NUMBER }}
+          path: |
+            build/ios/ipa/*.ipa
+            build/ios/WallField.xcarchive/dSYMs/
+            build/logs/
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Destroy the signing keychain
+        if: always()
+        run: |
+          # Runs even when an earlier step failed, so signing material never
+          # outlives the job that needed it.
+          security list-keychains -d user -s login.keychain-db || true
+          security default-keychain -s login.keychain-db || true
+          if [ -n "${SIGNING_KEYCHAIN:-}" ]; then
+            security delete-keychain "$SIGNING_KEYCHAIN" || true
+          fi
+          rm -rf "$HOME/.appstoreconnect/private_keys"
+          rm -f "$HOME/Library/MobileDevice/Provisioning Profiles/"*.mobileprovision
+          echo "Signing material removed."

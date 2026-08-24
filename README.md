@@ -118,7 +118,7 @@ python3 Tools/audit_sources.py        # Swift source rules
 python3 Tools/check_symbols.py        # every Namespace.member reference resolves
 python3 Tools/lint_claims.py          # prohibited and guarded wording
 python3 Tools/verify_algorithm.py     # detection arithmetic vs the test expectations
-python3 Tools/validate_codemagic.py   # CI config vs the real schemes, bundle id and code
+python3 Tools/validate_workflows.py   # CI config vs the real schemes, bundle id and code
 python3 Tools/select_simulator.py --self-test
 ```
 
@@ -127,7 +127,7 @@ python3 Tools/select_simulator.py --self-test
 running the XCTest suite: it does not compile Swift and cannot catch a Swift
 error. See the header of `Tools/detector_reference.py`.
 
-`Tools/validate_codemagic.py` needs PyYAML (`pip3 install pyyaml`); everything
+`Tools/validate_workflows.py` needs PyYAML (`pip3 install pyyaml`); everything
 else uses the standard library only.
 
 Two files are generated and can be rebuilt from source:
@@ -139,39 +139,47 @@ python3 Tools/generate_app_icon.py    # rewrites the 1024pt app icon
 
 ## Continuous integration
 
-`codemagic.yaml` defines two **manually triggered** Codemagic workflows. Neither
-has a branch trigger, so neither can start from a push.
+Two GitHub Actions workflows, in `.github/workflows/`.
 
-| Workflow | What it does |
-|---|---|
-| `wallfield-simulator-tests` | Verifies the toolchain is Xcode 26.4+ with the iOS 26 SDK, runs `Tools/check_all.sh`, compiles the app for a **discovered** iOS Simulator, then builds and runs every unit and UI test. Signs nothing, publishes nothing. Keeps the `.xcresult` bundle and all build logs as artifacts. |
-| `wallfield-testflight` | Everything above, then chooses a unique increasing build number, applies automatically fetched App Store signing for `com.idlery.magshift`, archives, exports a normal App Store IPA, verifies it, and uploads it to App Store Connect and TestFlight. |
+| Workflow | Trigger | What it does |
+|---|---|---|
+| `tests.yml` | every push and pull request | Runs `Tools/check_all.sh` on Linux first, so a rule violation fails the run before a macOS runner is claimed. Then selects an Xcode of at least 26 with the iOS 26 SDK, compiles the app for a **discovered** iOS Simulator, and builds and runs every unit and UI test. Signs nothing, uploads nothing, and **uses no secrets at all** — the repository is public, so pull requests from forks run this, and a workflow that needs no secret cannot leak one. |
+| `testflight.yml` | `workflow_dispatch` only | Checks every required secret is present, calls `tests.yml` (rather than copying it, so the two cannot drift), then chooses a build number, imports signing material into a throwaway keychain, archives Release, exports a normal App Store IPA, verifies the shipped `Info.plist`, validates with App Store Connect as a free dry run, and uploads to TestFlight. |
 
-The simulator is never named in the configuration. `Tools/select_simulator.py`
-reads what `simctl` reports and picks the newest available iPhone on the newest
+Neither the runner's Xcode nor the simulator is named in the configuration.
+`Tools/select_xcode.sh` picks the newest installed Xcode that meets the floor,
+and `Tools/select_simulator.py` picks the newest available iPhone on the newest
 available iOS runtime, so a change to the runner image cannot silently break the
-build.
+build — and both fail with a list of what the machine actually has.
 
-**One value must match your Codemagic account** before the first release run —
-in `wallfield-testflight`:
+### Releasing
 
-```yaml
-integrations:
-  app_store_connect: WallField App Store Connect
-```
+`testflight.yml` is manual: no push, tag or merge can ship a build. Before the
+first run, add these under **Settings → Secrets and variables → Actions**:
 
-That string must be the exact name of your App Store Connect integration in
-Codemagic → Teams/Personal account → Integrations. Optionally also set
-`APP_STORE_APPLE_ID` (the app's numeric Apple ID) so the build number is derived
-from what App Store Connect already holds; without it, Codemagic's own
-incrementing counter is used.
+| Secret | What it is |
+|---|---|
+| `APPLE_DISTRIBUTION_CERTIFICATE` | base64 of the Apple Distribution `.p12` |
+| `APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD` | the password used when exporting it |
+| `APPLE_PROVISIONING_PROFILE` | base64 of the App Store `.mobileprovision` |
+| `APPLE_TEAM_ID` | 10-character Apple Developer Team ID |
+| `APP_STORE_CONNECT_KEY_ID` | App Store Connect API key ID |
+| `APP_STORE_CONNECT_ISSUER_ID` | App Store Connect API issuer ID |
+| `APP_STORE_CONNECT_PRIVATE_KEY` | contents of the `AuthKey_*.p8`, including its BEGIN/END lines |
+
+The preflight job names every one that is missing, so a misconfiguration costs
+one fast job rather than an hour of building. `CFBundleVersion` is the workflow
+run number plus the optional `BUILD_NUMBER_OFFSET` repository variable, which
+exists for the case where builds already in App Store Connect were uploaded by
+something else; a run can also be given an explicit build number.
 
 The release workflow deliberately does **not** pass
 `testFlightInternalTestingOnly`, and asserts it is absent from the generated
 export options before archiving, so the uploaded build stays eligible for App
 Store submission. It also verifies the shipped `Info.plist` before uploading:
 bundle identifier, build number, and that `ITSAppUsesNonExemptEncryption` is
-present and `false`.
+present and `false`. Signing material lives in a keychain created for the job
+and destroyed in a step that runs even when an earlier one failed.
 
 ## Layout
 
@@ -191,7 +199,7 @@ WallField/
 Config/           xcconfig build settings, Info.plist, signing (no Team ID)
 Docs/             architecture, algorithm, safety, validation, App Store, privacy
 Tools/            project generator, icon generator, and the repository checks
-codemagic.yaml    two manually triggered CI workflows
+.github/workflows/  tests on every push; TestFlight release by hand
 ```
 
 ## Privacy

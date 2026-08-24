@@ -18,8 +18,8 @@ repository.
 | 6 | Threshold validation before any detection claim | Engineering | **BLOCKING** — see `VALIDATION_PROTOCOL.md` §7 |
 | 7 | Screenshots from a real device | Design | Required; see §6 |
 | 8 | App icon | Design | A generated icon ships at `WallField/Resources/Assets.xcassets/AppIcon.appiconset`. Replace it if Idlery has brand artwork |
-| 9 | Codemagic App Store Connect integration name | Idlery Services LLC | **BLOCKING for CI** — `integrations.app_store_connect` in `codemagic.yaml` must match the integration name in Codemagic → Integrations |
-| 10 | `APP_STORE_APPLE_ID` environment variable | Idlery Services LLC | Optional. Lets the CI derive the build number from App Store Connect instead of only Codemagic's counter |
+| 9 | GitHub Actions release secrets | Idlery Services LLC | **BLOCKING for CI** — the seven secrets listed in the header of `.github/workflows/testflight.yml`. The workflow's preflight job names any that are missing |
+| 10 | `BUILD_NUMBER_OFFSET` repository variable | Idlery Services LLC | Optional. Only needed if builds already in App Store Connect were uploaded by something other than this workflow, so numbering stays ahead of them |
 
 ## 2. Build configuration
 
@@ -76,7 +76,7 @@ that is **accurate for this code**, not an assumption:
 * scans are written as plain JSON. The only encryption involved is iOS's own
   Data Protection at rest, which is exempt.
 
-`Tools/validate_codemagic.py` re-checks all of that on every run: it fails if
+`Tools/validate_workflows.py` re-checks all of that on every run: it fails if
 the key is missing or true, if any encryption or networking framework is
 imported, or if an entitlements file appears. The release workflow additionally
 unzips the built IPA and asserts the key survived into the shipped `Info.plist`,
@@ -231,42 +231,54 @@ Paste this into the review notes field:
 
 ## 9. Continuous integration
 
-`codemagic.yaml` defines two manually triggered Codemagic workflows on a macOS
-M2 machine with Xcode 26.4:
+`.github/workflows/` holds two GitHub Actions workflows. macOS runners are free
+for public repositories, which is what this repository is.
 
-* **`wallfield-simulator-tests`** — toolchain guard, `Tools/check_all.sh`,
-  compile for a discovered iOS Simulator, and the full unit and UI test suite.
-  Code signing is disabled and nothing is published.
-* **`wallfield-testflight`** — the same checks and tests, then a signed App
-  Store archive uploaded to App Store Connect and TestFlight.
+* **`tests.yml`** — runs on every push and pull request. `Tools/check_all.sh`
+  first, on Linux, so a rule violation fails before a macOS runner is claimed;
+  then a toolchain guard, a compile for a discovered iOS Simulator, and the full
+  unit and UI test suite. Code signing is disabled and nothing is published.
+* **`testflight.yml`** — `workflow_dispatch` only. Preflight secret check, then
+  the whole of `tests.yml` (called, not copied), then a signed App Store archive
+  uploaded to App Store Connect and TestFlight.
 
 Points that matter for review and for the store:
 
-* The first script fails the build unless Xcode is at least 26.4 **and** the
-  newest installed iOS SDK is at least 26.0, which is what Apple requires of
-  uploads made since 28 April 2026.
+* `Tools/select_xcode.sh` fails the build unless an installed Xcode is at least
+  26.0 **and** the newest installed iOS SDK is at least 26.0, which is what
+  Apple requires of uploads made since 28 April 2026. It discovers what the
+  runner has rather than pinning a version that a runner-image update would
+  invalidate.
 * The release build is an ordinary App Store export.
   `testFlightInternalTestingOnly` is never set, and a dedicated step fails the
   build if it appears in the generated export options — an internal-only build
   could never be submitted to the App Store, which would defeat the point of
   building it.
-* The build number is Codemagic's own increasing counter, raised above whatever
-  App Store Connect already holds when `APP_STORE_APPLE_ID` is set. It is
-  applied with a command-line `CURRENT_PROJECT_VERSION`, so the CI never mutates
-  the repository to change a version.
-* `submit_to_app_store` is explicitly `false`. Submitting for review is a
-  separate, deliberate decision, and `Docs/VALIDATION_PROTOCOL.md` has to be
-  completed first.
+* `manageAppVersionAndBuildNumber` is pinned to `false`, so the build number the
+  workflow chose is the one that ships rather than one Xcode invented.
+* The build number is the workflow run number plus the optional
+  `BUILD_NUMBER_OFFSET` repository variable. It is applied with a command-line
+  `CURRENT_PROJECT_VERSION`, so the CI never mutates the repository to change a
+  version.
+* The upload is validated first with `altool --validate-app`, which is a free
+  dry run: a wrong bundle identifier, a missing app record or a duplicate build
+  number is reported without consuming the upload.
+* Nothing submits for App Store review. That is a separate, deliberate decision,
+  and `Docs/VALIDATION_PROTOCOL.md` has to be completed first.
+* Signing material is imported into a keychain created for the job and destroyed
+  in a step that runs even when an earlier step failed. The test workflow
+  references no secret at all, which matters because the repository is public
+  and pull requests from forks run it.
 
-**No Codemagic build has been run yet.** Until one has, the Swift project is
-unproven: it has never been compiled, and no XCTest has ever executed.
+**No CI build has been run yet.** Until one has, the Swift project is unproven:
+it has never been compiled, and no XCTest has ever executed.
 
 ## 10. Pre-submission checklist
 
 - [ ] `Tools/check_all.sh` passes
-- [ ] `wallfield-simulator-tests` passes on Codemagic — this is the first proof
-      the project compiles at all
-- [ ] `wallfield-testflight` produces an IPA and uploads it
+- [ ] `tests.yml` passes on GitHub Actions — this is the first proof the
+      project compiles at all
+- [ ] `testflight.yml` produces an IPA and uploads it
 - [ ] The uploaded build appears in TestFlight and is installable
 - [ ] `Docs/VALIDATION_PROTOCOL.md` §8 completed on a real device, with results
       written down

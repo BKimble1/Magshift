@@ -1,0 +1,162 @@
+# Repository checks, a Simulator compile, and the full test suite.
+#
+# Runs on every push and pull request, and is also called by the TestFlight
+# workflow (`workflow_call`) so a release can never be cut from a red tree.
+#
+# This workflow uses no secrets. That is deliberate: the repository is public,
+# so pull requests from forks run here, and a workflow that needs no secrets is
+# one that cannot leak them.
+name: Tests
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      runner:
+        description: "GitHub-hosted runner image to build on."
+        type: string
+        required: false
+        default: macos-15
+
+concurrency:
+  group: tests-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  XCODE_PROJECT: WallField.xcodeproj
+  XCODE_SCHEME: WallField
+  MINIMUM_XCODE_VERSION: "26.0"
+  MINIMUM_IOS_SDK_VERSION: "26.0"
+
+jobs:
+  # The Python checkers need no Xcode, so they run on Linux in under a minute
+  # and fail the run before a macOS runner is ever claimed.
+  repository-checks:
+    name: Repository checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install PyYAML
+        run: python3 -m pip install --quiet --disable-pip-version-check pyyaml
+
+      - name: Run every check that does not need Xcode
+        run: Tools/check_all.sh
+
+  simulator-tests:
+    name: Simulator tests
+    needs: repository-checks
+    runs-on: ${{ inputs.runner || 'macos-15' }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select and verify the Xcode toolchain
+        run: Tools/select_xcode.sh >> "$GITHUB_ENV"
+
+      - name: Select an available iOS Simulator
+        run: |
+          mkdir -p build/logs
+
+          echo "--- Installed simulator runtimes ---"
+          xcrun simctl list runtimes | tee build/logs/simctl-runtimes.log
+          echo
+
+          # The destination is discovered, never hard-coded: a pinned device
+          # name breaks every time the runner image changes.
+          xcrun simctl list devices available --json > build/logs/simctl-devices.json
+          selection="$(python3 Tools/select_simulator.py build/logs/simctl-devices.json)"
+          echo "$selection"
+          echo "$selection" >> "$GITHUB_ENV"
+
+          udid="$(printf '%s\n' "$selection" | sed -n 's/^SIMULATOR_UDID=//p')"
+
+          # Boot ahead of xcodebuild and wait for it. A cold boot inside the
+          # test action is a common source of first-launch flake in UI tests.
+          xcrun simctl bootstatus "$udid" -b
+
+          # Disconnecting the hardware keyboard makes the software keyboard
+          # appear for XCUITest text entry, which is what the review-screen UI
+          # test types into. Best effort: it is a preference, not an API.
+          defaults write com.apple.iphonesimulator ConnectHardwareKeyboard -bool false || true
+
+      - name: Compile the app for the Simulator
+        run: |
+          mkdir -p build/logs
+          # The WallField scheme's build action contains the app target only, so
+          # this proves the application itself compiles, separately from the
+          # test bundles. A failure here is unambiguously an app failure.
+          set -o pipefail
+          NSUnbufferedIO=YES xcodebuild build \
+            -project "$XCODE_PROJECT" \
+            -scheme "$XCODE_SCHEME" \
+            -configuration Debug \
+            -destination "id=$SIMULATOR_UDID" \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            | tee build/logs/build-app.log
+
+      - name: Build the test bundles
+        run: |
+          mkdir -p build/logs
+          set -o pipefail
+          NSUnbufferedIO=YES xcodebuild build-for-testing \
+            -project "$XCODE_PROJECT" \
+            -scheme "$XCODE_SCHEME" \
+            -configuration Debug \
+            -destination "id=$SIMULATOR_UDID" \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            | tee build/logs/build-for-testing.log
+
+      - name: Run unit and UI tests
+        run: |
+          mkdir -p build/logs
+          rm -rf build/test-results
+
+          # Runs every test in the scheme: WallFieldTests and WallFieldUITests.
+          #
+          # The UI tests drive the app in its deterministic simulated mode by
+          # passing -WallFieldDemoMode and -WallFieldResetState as launch
+          # arguments from the test code itself, so no separate scheme is needed
+          # and the mode cannot be lost by editing CI configuration. The tests
+          # are built Debug, which is the only configuration in which simulated
+          # data is compiled in at all.
+          #
+          # Parallel testing is disabled on purpose: these tests assert on
+          # deterministic sensor data, and determinism is worth more here than
+          # wall-clock time.
+          set -o pipefail
+          NSUnbufferedIO=YES xcodebuild test-without-building \
+            -project "$XCODE_PROJECT" \
+            -scheme "$XCODE_SCHEME" \
+            -configuration Debug \
+            -destination "id=$SIMULATOR_UDID" \
+            -derivedDataPath build/DerivedData \
+            -resultBundlePath build/test-results/WallField.xcresult \
+            -parallel-testing-enabled NO \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            | tee build/logs/tests.log
+
+      - name: Upload test results and logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ github.run_number }}
+          path: |
+            build/test-results/
+            build/logs/
+          retention-days: 14
+          if-no-files-found: warn
