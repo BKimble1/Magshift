@@ -17,12 +17,18 @@ struct CapabilityBlock: Equatable {
         // Simulated data deliberately bypasses hardware checks: that is the whole
         // point of it, and every screen it drives is labelled as simulated.
         //
-        // A denied camera authorization is not a hardware fact, though. Simulated
-        // capabilities always report the camera as authorized, so the only way it
-        // reads as denied here is `-WallFieldSimulateCameraDenied`, which exists
-        // precisely so the permission-denied recovery path can be exercised.
-        // Returning early on it would make that launch argument do nothing.
-        if runtimeMode.isSimulated, capabilities.cameraAuthorization.isUsable { return nil }
+        // Camera authorization is not a hardware capability, though -- it is a
+        // decision the user made, and simulated data cannot stand in for it.
+        // Simulated capabilities always report the camera as authorized, so the
+        // only way it reads as denied here is `-WallFieldSimulateCameraDenied`,
+        // which exists precisely so the permission-denied recovery path can be
+        // exercised. Returning early would make that launch argument do nothing.
+        if runtimeMode.isSimulated {
+            switch capabilities.cameraAuthorization {
+            case .authorized, .notDetermined: return nil
+            case .denied, .restricted: break
+            }
+        }
 
         if !capabilities.supportsWorldTracking {
             return CapabilityBlock(

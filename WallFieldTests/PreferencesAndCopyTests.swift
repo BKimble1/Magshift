@@ -338,14 +338,28 @@ final class CapabilityBlockTests: XCTestCase {
     }
 
     func testSimulatedModeBypassesHardwareChecks() {
+        // Hardware the Simulator does not have is exactly what simulated data
+        // stands in for, so none of it may produce a block.
         let capabilities = DeviceCapabilities(
             supportsWorldTracking: false,
             supportsVerticalPlaneDetection: false,
             supportsSceneDepth: false,
             supportsSceneReconstruction: false,
-            cameraAuthorization: .denied
+            cameraAuthorization: .authorized
         )
         XCTAssertNil(CapabilityBlock.evaluate(capabilities, runtimeMode: .simulated))
+    }
+
+    func testSimulatedModeStillReportsADeniedCamera() {
+        // Permission is not hardware: it is a decision the user made, and no
+        // amount of simulated data substitutes for it. `-WallFieldSimulateCameraDenied`
+        // exists so this path can be exercised, and would do nothing if simulated
+        // mode swallowed it.
+        var capabilities = DeviceCapabilities.simulated()
+        capabilities.cameraAuthorization = .denied
+        let block = CapabilityBlock.evaluate(capabilities, runtimeMode: .simulated)
+        XCTAssertEqual(block?.title, "Camera access is off")
+        XCTAssertEqual(block?.offersSettings, true)
     }
 
     func testLiveScanRequiresTrackingAndCamera() {

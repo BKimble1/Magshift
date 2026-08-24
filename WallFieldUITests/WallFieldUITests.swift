@@ -185,12 +185,24 @@ final class WallFieldUITests: XCTestCase {
         XCTAssertTrue(history.waitForExistence(timeout: 10))
         history.tap()
 
-        let firstRow = app.cells.firstMatch
-        XCTAssertTrue(firstRow.waitForExistence(timeout: 10))
-        firstRow.tap()
+        // Matched by the name this test gave the scan rather than by position:
+        // `cells.firstMatch` pins down how SwiftUI happens to expose a List row,
+        // which is not this test's business, and says nothing useful when it
+        // matches the wrong thing.
+        let savedRow = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label BEGINSWITH %@", "Wall scan"))
+            .firstMatch
+        XCTAssertTrue(savedRow.waitForExistence(timeout: 10), "the saved scan is not listed")
+        savedRow.tap()
+
+        // Assert the detail screen arrived before looking for anything on it, so
+        // a navigation failure is not reported as a missing button.
+        XCTAssertTrue(app.staticTexts["This scan"].waitForExistence(timeout: 10),
+                      "tapping the saved scan did not open it")
 
         // Detail offers export, and deletion asks first.
-        XCTAssertTrue(app.buttons[A11yID.export].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons[A11yID.export].waitForExistence(timeout: 10),
+                      "a saved scan must offer export")
         app.buttons[A11yID.deleteScan].firstMatch.tap()
         let confirm = app.buttons[A11yID.confirmDelete].firstMatch
         XCTAssertTrue(confirm.waitForExistence(timeout: 5),
@@ -209,9 +221,16 @@ final class WallFieldUITests: XCTestCase {
             "no marks to undo"
         )
 
+        // Pause first. The sweep is still running otherwise, so a mark can be
+        // added between reading the count and undoing one, and the count would
+        // be right back where it started through no fault of undo.
+        app.buttons[A11yID.pause].tap()
+        XCTAssertTrue(app.buttons[A11yID.resume].waitForExistence(timeout: 5))
+
         let before = markCount(clusterCount)
         app.buttons[A11yID.undo].tap()
-        XCTAssertTrue(waitUntil(timeout: 5) { markCount(clusterCount) < before })
+        XCTAssertTrue(waitUntil(timeout: 5) { markCount(clusterCount) < before },
+                      "undo did not remove a mark")
 
         app.buttons[A11yID.reset].tap()
         let confirmReset = app.buttons["Remove all marks"]
