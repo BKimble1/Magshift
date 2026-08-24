@@ -1,0 +1,433 @@
+name: TestFlight release
+
+# Manual only. There is deliberately no push or tag trigger: a release is a
+# decision, not a side effect of merging.
+#
+# The `verify` job below is the whole of Checks and Simulator tests. Nothing is
+# signed or uploaded unless it passes, so a release can never be the first thing
+# that compiled this project.
+#
+# Eight repository secrets are required. Docs/RELEASE_TO_TESTFLIGHT.md explains
+# where each comes from; the first step of the release job names any that are
+# missing before a runner minute is spent on building.
+
+on:
+  workflow_dispatch:
+    inputs:
+      runner:
+        description: 'macOS runner label. Needs Xcode 26.4+ with the iOS 26 SDK.'
+        required: false
+        default: 'macos-latest'
+        type: string
+
+permissions:
+  contents: read
+
+# Releases are serialised. Two concurrent runs would pick the same build number
+# and the second upload would be rejected after a full signed build.
+concurrency:
+  group: wallfield-testflight
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash -euo pipefail {0}
+
+jobs:
+  verify:
+    name: Verify
+    uses: ./.github/workflows/tests.yml
+    with:
+      runner: ${{ inputs.runner }}
+
+  release:
+    name: Archive, verify and upload
+    needs: verify
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: 90
+
+    env:
+      XCODE_PROJECT: WallField.xcodeproj
+      XCODE_SCHEME: WallField
+      BUNDLE_ID: com.idlery.magshift
+      MINIMUM_XCODE_VERSION: '26.4'
+      MINIMUM_IOS_SDK_VERSION: '26.0'
+      ARCHIVE_PATH: build/WallField.xcarchive
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Check the required secrets are present
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
+          P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
+          PROVISIONING_PROFILE_BASE64: ${{ secrets.PROVISIONING_PROFILE_BASE64 }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+        run: |
+          # Fail in seconds rather than after a 30-minute build.
+          missing=''
+          for name in APPLE_TEAM_ID BUILD_CERTIFICATE_BASE64 P12_PASSWORD \
+                      PROVISIONING_PROFILE_BASE64 KEYCHAIN_PASSWORD \
+                      APP_STORE_CONNECT_KEY_ID APP_STORE_CONNECT_ISSUER_ID \
+                      APP_STORE_CONNECT_PRIVATE_KEY; do
+            if [ -z "${!name:-}" ]; then
+              missing="$missing $name"
+            fi
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::missing repository secrets:$missing -- see Docs/RELEASE_TO_TESTFLIGHT.md"
+            exit 1
+          fi
+          echo "All eight required secrets are set."
+
+      - name: Select the Xcode toolchain
+        run: |
+          selection="$(python3 Tools/select_xcode.py --minimum "$MINIMUM_XCODE_VERSION")"
+          echo "$selection"
+          echo "$selection" >> "$GITHUB_ENV"
+
+      - name: Verify the toolchain and iOS SDK
+        run: |
+          echo "--- Build machine ---"
+          sw_vers
+          xcodebuild -version
+          echo
+
+          ios_sdk_version="$(xcodebuild -showsdks \
+            | sed -n 's/.*-sdk iphoneos\([0-9][0-9.]*\).*/\1/p' \
+            | python3 -c 'import sys; v=[l.strip() for l in sys.stdin if l.strip()]; k=lambda s: tuple(int(x) for x in s.split(".") if x.isdigit()); print(max(v, key=k) if v else "")')"
+
+          if [ -z "$ios_sdk_version" ]; then
+            echo "::error::no iOS SDK is installed on this runner."
+            exit 1
+          fi
+          if ! python3 -c 'import sys; p = lambda v: tuple(int(x) for x in v.split(".") if x.isdigit()); sys.exit(0 if p(sys.argv[1]) >= p(sys.argv[2]) else 1)' \
+              "$ios_sdk_version" "$MINIMUM_IOS_SDK_VERSION"; then
+            echo "::error::the newest installed iOS SDK is $ios_sdk_version, but App Store uploads require at least $MINIMUM_IOS_SDK_VERSION."
+            exit 1
+          fi
+          echo "Xcode $XCODE_VERSION with iOS SDK $ios_sdk_version. Both meet the minimum."
+
+      - name: Install the App Store Connect API key
+        env:
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+        run: |
+          key_directory="$HOME/.appstoreconnect/private_keys"
+          mkdir -p "$key_directory"
+          key_path="$key_directory/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8"
+          printf '%s\n' "$APP_STORE_CONNECT_PRIVATE_KEY" > "$key_path"
+          chmod 600 "$key_path"
+
+          # The single most common way this secret is set wrongly is pasting the
+          # key ID, or the key body without its armour. Say so now.
+          if ! grep -q 'BEGIN PRIVATE KEY' "$key_path"; then
+            echo "::error::APP_STORE_CONNECT_PRIVATE_KEY does not look like a .p8 key. Paste the whole file, including the BEGIN and END lines."
+            exit 1
+          fi
+
+          echo "ASC_KEY_PATH=$key_path" >> "$GITHUB_ENV"
+          echo "Installed AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8"
+
+      - name: Choose a build number
+        env:
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: |
+          # `cryptography` signs the App Store Connect token. Its absence is not
+          # fatal: the chooser falls back to the run number, which is already
+          # unique and increasing for this workflow.
+          python3 -m pip install --quiet --disable-pip-version-check cryptography \
+            || python3 -m pip install --quiet --disable-pip-version-check --user cryptography \
+            || python3 -m pip install --quiet --disable-pip-version-check --break-system-packages cryptography \
+            || echo "cryptography could not be installed; the run number will be used."
+
+          build_number="$(python3 Tools/appstore_build_number.py \
+            --bundle-id "$BUNDLE_ID" \
+            --fallback "$GITHUB_RUN_NUMBER" \
+            --key-id "$APP_STORE_CONNECT_KEY_ID" \
+            --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
+            --key-path "$ASC_KEY_PATH")"
+
+          echo "WALLFIELD_BUILD_NUMBER=$build_number" >> "$GITHUB_ENV"
+          echo "Build number for this archive: $build_number"
+
+      - name: Install the signing certificate and provisioning profile
+        env:
+          BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
+          P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
+          PROVISIONING_PROFILE_BASE64: ${{ secrets.PROVISIONING_PROFILE_BASE64 }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          certificate="$RUNNER_TEMP/certificate.p12"
+          profile="$RUNNER_TEMP/profile.mobileprovision"
+          keychain="$RUNNER_TEMP/wallfield-signing.keychain-db"
+
+          printf '%s' "$BUILD_CERTIFICATE_BASE64" | base64 --decode > "$certificate"
+          printf '%s' "$PROVISIONING_PROFILE_BASE64" | base64 --decode > "$profile"
+
+          # A keychain of its own, deleted again by the last step of this job,
+          # so nothing is left in the runner's login keychain.
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$keychain"
+          security import "$certificate" -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k "$keychain"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s \
+            -k "$KEYCHAIN_PASSWORD" "$keychain" > /dev/null
+          security list-keychains -d user -s "$keychain" \
+            $(security list-keychains -d user | tr -d '"')
+          security default-keychain -s "$keychain"
+
+          echo "--- Signing identities in the build keychain ---"
+          security find-identity -v -p codesigning "$keychain"
+
+          # Read the profile rather than asking for its name as a ninth secret:
+          # a name that does not match the file fails minutes into signing, with
+          # a message that does not say which of the two is wrong.
+          plist="$RUNNER_TEMP/profile.plist"
+          security cms -D -i "$profile" > "$plist"
+          profile_name="$(/usr/libexec/PlistBuddy -c 'Print :Name' "$plist")"
+          profile_uuid="$(/usr/libexec/PlistBuddy -c 'Print :UUID' "$plist")"
+          application_id="$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:application-identifier' "$plist")"
+
+          case "$application_id" in
+            *".$BUNDLE_ID")
+              ;;
+            *)
+              echo "::error::the provisioning profile is for $application_id, but this app is $BUNDLE_ID. PROVISIONING_PROFILE_BASE64 holds the wrong profile."
+              exit 1
+              ;;
+          esac
+
+          # Xcode 16 moved where provisioning profiles are read from. Install to
+          # both locations so this does not depend on which Xcode was selected.
+          for directory in "$HOME/Library/MobileDevice/Provisioning Profiles" \
+                           "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"; do
+            mkdir -p "$directory"
+            cp "$profile" "$directory/$profile_uuid.mobileprovision"
+          done
+
+          echo "SIGNING_KEYCHAIN=$keychain" >> "$GITHUB_ENV"
+          echo "PROVISIONING_PROFILE_NAME=$profile_name" >> "$GITHUB_ENV"
+          echo "Using provisioning profile \"$profile_name\" ($profile_uuid) for $application_id"
+
+      - name: Write and check the export options
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          mkdir -p build
+
+          # Written here rather than committed, because the profile name is read
+          # from the profile itself and the team ID is a secret.
+          #
+          # `manageAppVersionAndBuildNumber` is false on purpose: left to
+          # itself Xcode will renumber the build during export, discarding the
+          # number chosen against what App Store Connect already holds.
+          write_options() {
+            cat > "$1" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>app-store-connect</string>
+            <key>destination</key>
+            <string>$2</string>
+            <key>teamID</key>
+            <string>${APPLE_TEAM_ID}</string>
+            <key>signingStyle</key>
+            <string>manual</string>
+            <key>signingCertificate</key>
+            <string>Apple Distribution</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>${BUNDLE_ID}</key>
+              <string>${PROVISIONING_PROFILE_NAME}</string>
+            </dict>
+            <key>uploadSymbols</key>
+            <true/>
+            <key>stripSwiftSymbols</key>
+            <true/>
+            <key>manageAppVersionAndBuildNumber</key>
+            <false/>
+          </dict>
+          </plist>
+          PLIST
+          }
+
+          write_options build/ExportOptions.plist export
+          write_options build/UploadOptions.plist upload
+
+          for options in build/ExportOptions.plist build/UploadOptions.plist; do
+            plutil -lint "$options"
+
+            # This build must stay eligible for App Store submission, so the
+            # internal-testing-only export must never be set. Nothing above
+            # writes it; this asserts that nothing else did either.
+            if /usr/libexec/PlistBuddy -c 'Print :testFlightInternalTestingOnly' "$options" > /dev/null 2>&1; then
+              echo "::error::testFlightInternalTestingOnly is present in $options. That produces a build which can never be submitted to the App Store."
+              exit 1
+            fi
+
+            method="$(/usr/libexec/PlistBuddy -c 'Print :method' "$options")"
+            case "$method" in
+              app-store|app-store-connect)
+                ;;
+              *)
+                echo "::error::export method in $options is '$method'; expected a normal App Store export."
+                exit 1
+                ;;
+            esac
+          done
+
+          echo "--- Export options ---"
+          plutil -p build/ExportOptions.plist
+
+      - name: Archive
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          mkdir -p build/logs
+
+          # CURRENT_PROJECT_VERSION is passed on the command line, which has the
+          # highest precedence in Xcode's build-setting hierarchy, so it
+          # overrides Config/Shared.xcconfig without the CI mutating the
+          # repository. Info.plist maps CFBundleVersion to it.
+          NSUnbufferedIO=YES xcodebuild archive \
+            -project "$XCODE_PROJECT" \
+            -scheme "$XCODE_SCHEME" \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$ARCHIVE_PATH" \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
+            PROVISIONING_PROFILE_SPECIFIER="$PROVISIONING_PROFILE_NAME" \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            CURRENT_PROJECT_VERSION="$WALLFIELD_BUILD_NUMBER" \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            OTHER_CODE_SIGN_FLAGS="--keychain $SIGNING_KEYCHAIN" \
+            | tee build/logs/archive.log
+
+      - name: Export the App Store IPA
+        run: |
+          mkdir -p build/logs
+          rm -rf build/ipa
+          NSUnbufferedIO=YES xcodebuild -exportArchive \
+            -archivePath "$ARCHIVE_PATH" \
+            -exportPath build/ipa \
+            -exportOptionsPlist build/ExportOptions.plist \
+            | tee build/logs/export.log
+
+      - name: Verify the IPA before uploading
+        run: |
+          # `|| true` so a missing directory reports the message below rather
+          # than aborting on `find`'s exit status.
+          ipa="$(find build/ipa -maxdepth 1 -name '*.ipa' 2>/dev/null | head -n 1 || true)"
+          if [ -z "$ipa" ]; then
+            echo "::error::no IPA was produced. Check the archive and export steps above."
+            exit 1
+          fi
+          echo "IPA: $ipa"
+
+          rm -rf build/verify && mkdir -p build/verify
+          unzip -o -j "$ipa" 'Payload/*.app/Info.plist' -d build/verify > /dev/null
+          plutil -convert xml1 build/verify/Info.plist
+          echo "--- Shipped Info.plist ---"
+          plutil -p build/verify/Info.plist
+          echo
+
+          read_key() { /usr/libexec/PlistBuddy -c "Print :$1" build/verify/Info.plist; }
+
+          built_bundle_id="$(read_key CFBundleIdentifier)"
+          built_version="$(read_key CFBundleVersion)"
+          built_short_version="$(read_key CFBundleShortVersionString)"
+
+          if [ "$built_bundle_id" != "$BUNDLE_ID" ]; then
+            echo "::error::built bundle id is $built_bundle_id, expected $BUNDLE_ID."
+            exit 1
+          fi
+          if [ "$built_version" != "$WALLFIELD_BUILD_NUMBER" ]; then
+            echo "::error::built CFBundleVersion is $built_version, expected $WALLFIELD_BUILD_NUMBER. Xcode renumbered the build."
+            exit 1
+          fi
+
+          # WallField uses no encryption of any kind, so this key is declared
+          # false in Config/WallField-Info.plist. Asserting it reached the
+          # shipped binary avoids the compliance question stalling every
+          # TestFlight build.
+          if ! encryption="$(read_key ITSAppUsesNonExemptEncryption 2>/dev/null)"; then
+            echo "::error::ITSAppUsesNonExemptEncryption is missing from the shipped Info.plist."
+            exit 1
+          fi
+          if [ "$encryption" != "false" ]; then
+            echo "::error::ITSAppUsesNonExemptEncryption is '$encryption', expected false."
+            exit 1
+          fi
+
+          echo "WALLFIELD_IPA=$ipa" >> "$GITHUB_ENV"
+          echo "Verified $built_bundle_id $built_short_version ($built_version), export compliance declared."
+
+      - name: Upload to App Store Connect and TestFlight
+        env:
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: |
+          mkdir -p build/logs
+          if xcrun --find altool > /dev/null 2>&1; then
+            echo "Uploading the verified IPA with altool."
+            NSUnbufferedIO=YES xcrun altool --upload-app \
+              --type ios \
+              --file "$WALLFIELD_IPA" \
+              --apiKey "$APP_STORE_CONNECT_KEY_ID" \
+              --apiIssuer "$APP_STORE_CONNECT_ISSUER_ID" \
+              | tee build/logs/upload.log
+          else
+            # altool is not present in every Xcode. xcodebuild can upload the
+            # archive itself, using the same export options with destination
+            # `upload` and the same API key.
+            echo "altool is not in this Xcode; uploading the archive with xcodebuild."
+            rm -rf build/upload
+            NSUnbufferedIO=YES xcodebuild -exportArchive \
+              -archivePath "$ARCHIVE_PATH" \
+              -exportPath build/upload \
+              -exportOptionsPlist build/UploadOptions.plist \
+              -authenticationKeyPath "$ASC_KEY_PATH" \
+              -authenticationKeyID "$APP_STORE_CONNECT_KEY_ID" \
+              -authenticationKeyIssuerID "$APP_STORE_CONNECT_ISSUER_ID" \
+              | tee build/logs/upload.log
+          fi
+
+          echo "Uploaded build $WALLFIELD_BUILD_NUMBER. It appears in App Store Connect -> TestFlight after processing."
+
+      - name: Upload the IPA, symbols and logs
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: wallfield-testflight-${{ github.run_number }}
+          path: |
+            build/ipa/*.ipa
+            build/WallField.xcarchive/dSYMs/**
+            build/logs/**
+          retention-days: 14
+          if-no-files-found: warn
+
+      - name: Remove signing material
+        if: ${{ always() }}
+        run: |
+          # The runner is thrown away regardless, but a job that leaves a
+          # private key on disk between steps is a job that will eventually run
+          # somewhere that is not thrown away.
+          security delete-keychain "$RUNNER_TEMP/wallfield-signing.keychain-db" 2> /dev/null || true
+          rm -f "$RUNNER_TEMP/certificate.p12" \
+                "$RUNNER_TEMP/profile.mobileprovision" \
+                "$RUNNER_TEMP/profile.plist" || true
+          rm -rf "$HOME/.appstoreconnect" || true
+          rm -f "$HOME/Library/MobileDevice/Provisioning Profiles/"*.mobileprovision || true
+          rm -f "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles/"*.mobileprovision || true
+          echo "Signing material removed."

@@ -18,8 +18,8 @@ repository.
 | 6 | Threshold validation before any detection claim | Engineering | **BLOCKING** — see `VALIDATION_PROTOCOL.md` §7 |
 | 7 | Screenshots from a real device | Design | Required; see §6 |
 | 8 | App icon | Design | A generated icon ships at `WallField/Resources/Assets.xcassets/AppIcon.appiconset`. Replace it if Idlery has brand artwork |
-| 9 | Codemagic App Store Connect integration name | Idlery Services LLC | **BLOCKING for CI** — `integrations.app_store_connect` in `codemagic.yaml` must match the integration name in Codemagic → Integrations |
-| 10 | `APP_STORE_APPLE_ID` environment variable | Idlery Services LLC | Optional. Lets the CI derive the build number from App Store Connect instead of only Codemagic's counter |
+| 9 | Distribution certificate, provisioning profile and App Store Connect API key, as eight GitHub repository secrets | Idlery Services LLC | **BLOCKING for CI** — see [`RELEASE_TO_TESTFLIGHT.md`](RELEASE_TO_TESTFLIGHT.md) §1–§2 |
+| 10 | Codemagic App Store Connect integration name | Idlery Services LLC | Only if the Codemagic fallback is used — `integrations.app_store_connect` in `codemagic.yaml` must match the integration name in Codemagic → Integrations |
 
 ## 2. Build configuration
 
@@ -236,35 +236,45 @@ Paste this into the review notes field:
 
 ## 9. Continuous integration
 
-`codemagic.yaml` defines two manually triggered Codemagic workflows on a macOS
-M2 machine with Xcode 26.4:
+Two manually triggered GitHub Actions workflows, in `.github/workflows/`:
 
-* **`wallfield-simulator-tests`** — toolchain guard, `Tools/check_all.sh`,
+* **Checks and Simulator tests** — toolchain guard, `Tools/check_all.sh`,
   compile for a discovered iOS Simulator, and the full unit and UI test suite.
-  Code signing is disabled and nothing is published.
-* **`wallfield-testflight`** — the same checks and tests, then a signed App
-  Store archive uploaded to App Store Connect and TestFlight.
+  Code signing is disabled and nothing is uploaded.
+* **TestFlight release** — runs the above as its `verify` job, then produces a
+  signed App Store archive and uploads it to App Store Connect and TestFlight.
+  It cannot sign or upload unless verification passed.
 
 Points that matter for review and for the store:
 
-* The first script fails the build unless Xcode is at least 26.4 **and** the
-  newest installed iOS SDK is at least 26.0, which is what Apple requires of
-  uploads made since 28 April 2026.
+* Neither workflow can be started by a push. Both are `workflow_dispatch` only.
+* Neither the Xcode version nor the Simulator is pinned. The build fails, loudly
+  and early, unless Xcode is at least 26.4 **and** the newest installed iOS SDK
+  is at least 26.0, which is what Apple requires of uploads made since 28 April
+  2026.
 * The release build is an ordinary App Store export.
-  `testFlightInternalTestingOnly` is never set, and a dedicated step fails the
-  build if it appears in the generated export options — an internal-only build
-  could never be submitted to the App Store, which would defeat the point of
-  building it.
-* The build number is Codemagic's own increasing counter, raised above whatever
-  App Store Connect already holds when `APP_STORE_APPLE_ID` is set. It is
-  applied with a command-line `CURRENT_PROJECT_VERSION`, so the CI never mutates
-  the repository to change a version.
-* `submit_to_app_store` is explicitly `false`. Submitting for review is a
-  separate, deliberate decision, and `Docs/VALIDATION_PROTOCOL.md` has to be
-  completed first.
+  `testFlightInternalTestingOnly` is never written, and a dedicated step fails
+  the build if it appears in the generated export options — an internal-only
+  build could never be submitted to the App Store, which would defeat the point
+  of building it.
+* The build number is taken from what App Store Connect already holds, so a
+  build uploaded from anywhere else cannot cause a collision. It is applied with
+  a command-line `CURRENT_PROJECT_VERSION`, and `manageAppVersionAndBuildNumber`
+  is false, so the CI never mutates the repository to change a version and Xcode
+  never renumbers it during export.
+* The shipped `Info.plist` is re-opened and checked before the upload: bundle
+  identifier, build number, and `ITSAppUsesNonExemptEncryption = false`.
+* Signing material is imported into a throwaway keychain and deleted again even
+  when an earlier step fails.
+* Submitting for App Store review is a separate, deliberate decision that the
+  workflow does not make, and `Docs/VALIDATION_PROTOCOL.md` has to be completed
+  first.
 
-**No Codemagic build has been run yet.** Until one has, the Swift project is
-unproven: it has never been compiled, and no XCTest has ever executed.
+`codemagic.yaml` defines the same two workflows for Codemagic and is kept as a
+fallback. Both must not run against the same app at once.
+
+**No CI build has been run yet.** Until one has, the Swift project is unproven:
+it has never been compiled, and no XCTest has ever executed.
 
 The step-by-step release procedure, its Apple-side prerequisites and a table of
 what each failure means are in
@@ -273,9 +283,9 @@ what each failure means are in
 ## 10. Pre-submission checklist
 
 - [ ] `Tools/check_all.sh` passes
-- [ ] `wallfield-simulator-tests` passes on Codemagic — this is the first proof
-      the project compiles at all
-- [ ] `wallfield-testflight` produces an IPA and uploads it
+- [ ] **Checks and Simulator tests** passes on GitHub Actions — this is the
+      first proof the project compiles at all
+- [ ] **TestFlight release** produces an IPA and uploads it
 - [ ] The uploaded build appears in TestFlight and is installable
 - [ ] `Docs/VALIDATION_PROTOCOL.md` §8 completed on a real device, with results
       written down

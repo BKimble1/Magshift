@@ -8,7 +8,9 @@ import os
 /// transitions and error conditions are recorded, so a sysdiagnose taken from a
 /// user's device cannot leak the contents of their scans.
 enum Log {
-    private static let subsystem = "com.idlery.wallfield"
+    /// Matches the bundle identifier, which is the convention `os_log`
+    /// filtering and Console.app expect.
+    private static let subsystem = "com.idlery.magshift"
 
     static let app = Logger(subsystem: subsystem, category: "app")
     static let sensors = Logger(subsystem: subsystem, category: "sensors")

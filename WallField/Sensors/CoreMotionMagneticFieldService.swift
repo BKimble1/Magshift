@@ -69,7 +69,7 @@ final class CoreMotionMagneticFieldService: MagneticFieldProviding {
     init(clock: any MonotonicClock = SystemMonotonicClock()) {
         self.clock = clock
         let queue = OperationQueue()
-        queue.name = "com.idlery.wallfield.motion"
+        queue.name = "com.idlery.magshift.motion"
         queue.maxConcurrentOperationCount = 1
         queue.qualityOfService = .userInitiated
         self.handlerQueue = queue
