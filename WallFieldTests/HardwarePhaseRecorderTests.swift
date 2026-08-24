@@ -47,8 +47,13 @@ final class HardwarePhaseRecorderTests: XCTestCase {
     func testWorkThatThrowsLeavesNothingBehind() {
         struct Failure: Error {}
 
+        // The return type is stated because nothing else can supply it: both
+        // `attempting` and `XCTAssertThrowsError` are generic, and a closure body
+        // that only throws gives the compiler nothing to infer from.
         XCTAssertThrowsError(
-            try HardwarePhaseRecorder.attempting(.preparingDiagnostics) { throw Failure() }
+            try HardwarePhaseRecorder.attempting(.preparingDiagnostics) { () -> Int in
+                throw Failure()
+            }
         )
         // A thrown error is a failure the app handles and reports itself, so it
         // must not also be reported as a crash at the next launch.
