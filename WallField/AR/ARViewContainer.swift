@@ -14,9 +14,11 @@ struct ARViewContainer: UIViewRepresentable {
     var showsCoaching: Bool
 
     func makeUIView(context: Context) -> ARView {
-        let view = controller.arView
-        context.coordinator.attachCoaching(to: view, session: view.session)
-        return view
+        HardwarePhaseRecorder.during(.presentingCamera) {
+            let view = controller.arView
+            context.coordinator.attachCoaching(to: view, session: view.session)
+            return view
+        }
     }
 
     func updateUIView(_ uiView: ARView, context: Context) {

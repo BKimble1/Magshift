@@ -11,6 +11,11 @@ enum HardwarePhase: String, Sendable, CaseIterable {
     case startingCamera
     case startingMagnetometer
     case scanning
+    case presentingCamera
+    case samplingCameraPose
+    case buildingWallOverlay
+    case placingMarker
+    case processingReading
     case openingDiagnostics
     case onDiagnosticsScreen
 
@@ -22,6 +27,11 @@ enum HardwarePhase: String, Sendable, CaseIterable {
         case .startingCamera: return "starting the camera and AR tracking"
         case .startingMagnetometer: return "starting the magnetometer"
         case .scanning: return "scanning"
+        case .presentingCamera: return "showing the camera view"
+        case .samplingCameraPose: return "reading the camera position"
+        case .buildingWallOverlay: return "drawing the outline of the wall"
+        case .placingMarker: return "placing a mark on the wall"
+        case .processingReading: return "processing a sensor reading"
         case .openingDiagnostics: return "opening sensor diagnostics"
         case .onDiagnosticsScreen: return "showing live sensor readings"
         }
@@ -57,11 +67,19 @@ enum HardwarePhase: String, Sendable, CaseIterable {
 /// # Two places, because one of them may be the thing that is broken
 ///
 /// The note is written to a file *and* to `UserDefaults`, and either can answer
-/// at the next launch. They fail differently: the file is written atomically and
-/// is on disk before the next line runs, but depends on a directory being
-/// creatable; `UserDefaults` needs no directory but flushes on its own schedule,
-/// so a process that dies immediately after may take the value with it. Writing
-/// both means a silent failure in one does not mean silence overall.
+/// at the next launch. They fail differently: the file reaches the kernel before
+/// the next line runs but depends on a directory being creatable; `UserDefaults`
+/// needs no directory but flushes on its own schedule, so a process that dies
+/// immediately after may take the value with it. Writing both means a silent
+/// failure in one does not mean silence overall.
+///
+/// # Cheap enough to sit inside the frame loop
+///
+/// Some of the phases are entered and left tens of times a second -- one per
+/// camera frame, one per sensor sample. The record is therefore a fixed-width
+/// slot in an already-open file, rewritten in place: one `write` on a live file
+/// descriptor, a few microseconds, no directory work and no rename. An atomic
+/// whole-file write per frame would have cost more than the thing being watched.
 @MainActor
 enum HardwarePhaseRecorder {
 
@@ -95,7 +113,8 @@ enum HardwarePhaseRecorder {
     static func takeUnfinishedPhase() -> HardwarePhase? {
         let fromFile = fileURL
             .flatMap { try? Data(contentsOf: $0) }
-            .flatMap { String(data: $0, encoding: .utf8) }
+            .map { $0.prefix(recordSize).prefix(while: { $0 != 0 }) }
+            .flatMap { String(data: Data($0), encoding: .utf8) }
         let fromDefaults = defaults.string(forKey: defaultsKey)
         erase()
         return (fromFile ?? fromDefaults).flatMap(HardwarePhase.init(rawValue:))
@@ -110,9 +129,7 @@ enum HardwarePhaseRecorder {
     }
 
     static func erase() {
-        if let fileURL {
-            try? FileManager.default.removeItem(at: fileURL)
-        }
+        writeRecord(Data(repeating: 0, count: recordSize))
         defaults.removeObject(forKey: defaultsKey)
     }
 
@@ -121,12 +138,37 @@ enum HardwarePhaseRecorder {
     private static let defaultsKey = "wallfield.diagnostics.unfinishedHardwarePhase"
     private static var defaults: UserDefaults { .standard }
 
+    /// Fixed width so a shorter phase name cannot leave a longer one's tail
+    /// behind when the slot is rewritten in place. Every case is well under it;
+    /// a test asserts that.
+    static let recordSize = 32
+
     private static func write(_ phase: HardwarePhase) {
-        if let fileURL {
-            try? Data(phase.rawValue.utf8).write(to: fileURL, options: .atomic)
-        }
+        var record = Data(phase.rawValue.utf8)
+        record.append(Data(repeating: 0, count: max(0, recordSize - record.count)))
+        writeRecord(record.prefix(recordSize))
         defaults.set(phase.rawValue, forKey: defaultsKey)
     }
+
+    private static func writeRecord(_ record: Data) {
+        guard let handle else { return }
+        try? handle.seek(toOffset: 0)
+        try? handle.write(contentsOf: record)
+    }
+
+    /// Opened once and held for the life of the process, so writing the note
+    /// costs one `write` rather than creating and renaming a file.
+    private static let handle: FileHandle? = {
+        guard let fileURL else { return nil }
+        let manager = FileManager.default
+        if !manager.fileExists(atPath: fileURL.path) {
+            manager.createFile(
+                atPath: fileURL.path,
+                contents: Data(repeating: 0, count: recordSize)
+            )
+        }
+        return try? FileHandle(forWritingTo: fileURL)
+    }()
 
     /// Resolved once. The directory is created on first use; if that fails the
     /// file half does nothing and `UserDefaults` carries the note alone, because

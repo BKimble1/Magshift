@@ -84,6 +84,7 @@ final class ARSessionController: ARSpatialProviding {
     private var spatialBuffer = SpatialSampleBuffer()
     private var wallAnchors: [UUID: AnchorEntity] = [:]
     private var wallModels: [UUID: ModelEntity] = [:]
+    private var wallMeshSignatures: [UUID: Int] = [:]
     private var markerEntities: [UUID: Entity] = [:]
     private var markerRoot: Entity?
 
@@ -255,7 +256,8 @@ final class ARSessionController: ARSpatialProviding {
                 return
             }
             MainActor.assumeIsolated {
-                self?.sampleFrame()
+                guard let self else { return }
+                HardwarePhaseRecorder.during(.samplingCameraPose) { self.sampleFrame() }
             }
         }
     }
@@ -271,7 +273,9 @@ final class ARSessionController: ARSpatialProviding {
                 } else {
                     detectedWalls.append(wall)
                 }
-                updateWallOverlay(for: wall)
+                HardwarePhaseRecorder.during(.buildingWallOverlay) {
+                    updateWallOverlay(for: wall)
+                }
             }
 
         case .wallsRemoved(let identifiers):
@@ -507,26 +511,49 @@ final class ARSessionController: ARSpatialProviding {
         }
         anchorEntity.transform = Transform(matrix: wall.transform)
 
-        let mesh = WallMeshBuilder.mesh(for: wall)
         let material = WallVisualStyle.overlayMaterial(isSelected: wall.id == lockedWall?.id)
+        let signature = meshSignature(for: wall)
 
         if let model = wallModels[wall.id] {
-            // Update in place. Recreating the entity every time ARKit refines the
-            // plane -- which is several times a second -- would churn GPU
-            // resources for no visual benefit.
-            model.model = ModelComponent(mesh: mesh, materials: [material])
+            // The entity is updated in place, and its mesh only when the wall's
+            // shape actually changed. ARKit refines a plane many times a second,
+            // usually by fractions of a millimetre; rebuilding the mesh for each
+            // of those uploaded a fresh vertex buffer to the GPU tens of times a
+            // second to draw a shape nobody could see change.
+            if wallMeshSignatures[wall.id] != signature {
+                model.model = ModelComponent(
+                    mesh: WallMeshBuilder.mesh(for: wall), materials: [material]
+                )
+                wallMeshSignatures[wall.id] = signature
+            }
         } else {
-            let model = ModelEntity(mesh: mesh, materials: [material])
+            let model = ModelEntity(mesh: WallMeshBuilder.mesh(for: wall), materials: [material])
             model.name = "wall-\(wall.id.uuidString)"
             anchorEntity.addChild(model)
             wallModels[wall.id] = model
+            wallMeshSignatures[wall.id] = signature
         }
         applyOverlayVisibility()
+    }
+
+    /// Identifies the shape a wall's mesh was last built for.
+    ///
+    /// Quantised to a millimetre: below that the overlay does not visibly change,
+    /// and the point of the signature is to not pay for redraws nobody can see.
+    private func meshSignature(for wall: DetectedWall) -> Int {
+        var hasher = Hasher()
+        hasher.combine(wall.boundary.count)
+        hasher.combine(Int((wall.extentX * 1000).rounded()))
+        hasher.combine(Int((wall.extentZ * 1000).rounded()))
+        hasher.combine(Int((wall.center.x * 1000).rounded()))
+        hasher.combine(Int((wall.center.z * 1000).rounded()))
+        return hasher.finalize()
     }
 
     private func removeWallOverlay(id: UUID) {
         wallModels[id]?.removeFromParent()
         wallModels[id] = nil
+        wallMeshSignatures[id] = nil
         if let anchor = wallAnchors[id] {
             storedARView?.scene.removeAnchor(anchor)
         }
@@ -537,6 +564,7 @@ final class ARSessionController: ARSpatialProviding {
         for (id, _) in wallAnchors { removeWallOverlay(id: id) }
         wallAnchors.removeAll()
         wallModels.removeAll()
+        wallMeshSignatures.removeAll()
     }
 
     private func applyOverlayVisibility() {
@@ -575,6 +603,10 @@ final class ARSessionController: ARSpatialProviding {
     }
 
     func renderCluster(_ cluster: AnomalyCluster) {
+        HardwarePhaseRecorder.during(.placingMarker) { renderClusterBody(cluster) }
+    }
+
+    private func renderClusterBody(_ cluster: AnomalyCluster) {
         guard let markerRoot, let wall = lockedWall else { return }
         let entity: Entity
         if let existing = markerEntities[cluster.id] {

@@ -99,6 +99,18 @@ final class HardwarePhaseRecorderTests: XCTestCase {
         XCTAssertNil(HardwarePhaseRecorder.takeUnfinishedPhase())
     }
 
+    func testEveryPhaseNameFitsTheFixedWidthSlot() {
+        for phase in HardwarePhase.allCases {
+            // The slot is rewritten in place rather than replaced, so a name that
+            // did not fit would be truncated and read back as no phase at all.
+            XCTAssertLessThan(
+                phase.rawValue.utf8.count,
+                HardwarePhaseRecorder.recordSize,
+                "\(phase.rawValue) does not fit the record"
+            )
+        }
+    }
+
     func testEveryPhaseSurvivesTheRoundTripAndSaysSomething() {
         for phase in HardwarePhase.allCases {
             HardwarePhaseRecorder.recordUnfinished(phase)

@@ -210,7 +210,7 @@ final class ScanCoordinator {
         sampleTask = Task { @MainActor [weak self] in
             for await sample in stream {
                 guard let self else { break }
-                self.process(sample)
+                HardwarePhaseRecorder.during(.processingReading) { self.process(sample) }
             }
         }
     }
