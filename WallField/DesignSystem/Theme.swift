@@ -78,6 +78,7 @@ enum A11y {
     static let scannerNewPass = "scanner.newPass"
     static let scannerUndo = "scanner.undo"
     static let scannerReset = "scanner.reset"
+    static let scannerConfirmReset = "scanner.confirmReset"
     static let scannerFinish = "scanner.finish"
     static let scannerSafety = "scanner.safety"
     static let scannerOverlayToggle = "scanner.overlayToggle"

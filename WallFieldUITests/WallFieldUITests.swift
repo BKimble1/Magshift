@@ -233,11 +233,11 @@ final class WallFieldUITests: XCTestCase {
                       "undo did not remove a mark")
 
         app.buttons[A11yID.reset].tap()
-        // `.firstMatch` for the same reason the delete confirmation uses it: a
-        // confirmation dialog's button matches more than one element, and `tap()`
-        // requires a single one. `waitForExistence` does not, which is why this
-        // surfaced at the tap rather than the wait.
-        let confirmReset = app.buttons["Remove all marks"].firstMatch
+        // By identifier, not by label. Two elements carry the label "Remove all
+        // marks", so `.firstMatch` on it picks one arbitrarily -- and picked the
+        // one whose tap did nothing. The delete confirmation has always been
+        // matched by identifier for the same reason.
+        let confirmReset = app.buttons[A11yID.confirmReset].firstMatch
         XCTAssertTrue(confirmReset.waitForExistence(timeout: 5),
                       "removing every mark must ask first")
         confirmReset.tap()
@@ -371,6 +371,7 @@ private enum A11yID {
     static let newPass = "scanner.newPass"
     static let undo = "scanner.undo"
     static let reset = "scanner.reset"
+    static let confirmReset = "scanner.confirmReset"
     static let finish = "scanner.finish"
     static let scannerSafety = "scanner.safety"
     static let clusterCount = "scanner.clusterCount"

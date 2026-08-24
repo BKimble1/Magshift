@@ -104,6 +104,7 @@ private struct ScanFlowContent: View {
             Button("Remove all marks", role: .destructive) {
                 coordinator.resetMeasurements()
             }
+            .accessibilityIdentifier(A11y.scannerConfirmReset)
             Button("Keep them", role: .cancel) {}
         } message: {
             Text("The wall stays locked and the baseline is kept, so you can start the sweep again "
