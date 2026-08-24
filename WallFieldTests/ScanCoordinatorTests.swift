@@ -15,15 +15,17 @@ final class ScanCoordinatorTests: XCTestCase {
         field = ControllableFieldService()
         spatial = FakeSpatialProvider()
         store = InMemoryScanStore()
-        preferences = AppPreferences(defaults: Self.scratchDefaults())
+        // Built here rather than returned from a helper. `UserDefaults` is not
+        // `Sendable`, and `setUp()` overrides a method that does not carry this
+        // class's isolation, so handing the instance back across that boundary
+        // is what Swift 6 rejects. Creating and consuming it in one place
+        // crosses nothing. A suite per test keeps them from seeing each other's
+        // preferences.
+        let suite = "wallfield.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite) ?? .standard
+        defaults.removePersistentDomain(forName: suite)
+        preferences = AppPreferences(defaults: defaults)
         clock = ManualClock(start: Fixture.baseTimestamp)
-    }
-
-    private static func scratchDefaults() -> UserDefaults {
-        let name = "wallfield.tests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: name) ?? .standard
-        defaults.removePersistentDomain(forName: name)
-        return defaults
     }
 
     private func makeCoordinator() -> ScanCoordinator {
