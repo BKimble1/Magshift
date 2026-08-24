@@ -16,6 +16,9 @@ struct HomeView: View {
             ScrollView {
                 VStack(spacing: Theme.Spacing.medium) {
                     header
+                    if let interruptedPhase = app.interruptedPhase {
+                        interruptedCard(interruptedPhase)
+                    }
                     if let capabilityBlock {
                         capabilityCard(capabilityBlock)
                     } else {
@@ -94,6 +97,26 @@ struct HomeView: View {
         .buttonStyle(PrimaryButtonStyle())
         .accessibilityIdentifier(A11y.homeNewScan)
         .accessibilityHint("Starts the preparation checklist for a new scan.")
+    }
+
+    /// Reports a hardware step a previous launch did not come back from.
+    ///
+    /// The camera, AR tracking and the magnetometer cannot run in the Simulator,
+    /// so nothing in the test suite reaches the code that drives them. Without
+    /// this card, a failure there is silent: the app disappears and there is
+    /// nothing on screen afterwards that says what it had been doing.
+    private func interruptedCard(_ phase: HardwarePhase) -> some View {
+        Card(title: "\(Branding.productName) stopped last time", systemImage: "exclamationmark.triangle") {
+            VStack(alignment: .leading, spacing: Theme.Spacing.small) {
+                Text("It stopped while \(phase.activityDescription). Nothing you had saved was "
+                    + "affected. If it keeps happening, this sentence is the useful part to report.")
+                    .font(Theme.Typography.body)
+                    .fixedSize(horizontal: false, vertical: true)
+                Button("Got it") { app.acknowledgeInterruptedPhase() }
+                    .buttonStyle(SecondaryButtonStyle())
+                    .accessibilityIdentifier(A11y.homeDismissInterruption)
+            }
+        }
     }
 
     private func capabilityCard(_ block: CapabilityBlock) -> some View {

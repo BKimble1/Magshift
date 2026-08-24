@@ -39,6 +39,13 @@ final class AppEnvironment {
     /// notification or a manual refresh.
     let library: ScanLibrary
 
+    /// The hardware step a previous launch did not come back from, if any.
+    ///
+    /// Surfaced on Home. This is the only report available when the code that
+    /// drives ARKit and Core Motion fails, because none of it can run in the
+    /// Simulator and so none of it can be covered by a test.
+    private(set) var interruptedPhase: HardwarePhase?
+
     /// Set when on-disk storage could not be opened and an in-memory store is
     /// standing in. Surfaced in Settings so the user is never silently saving
     /// scans that will not survive relaunch.
@@ -92,6 +99,12 @@ final class AppEnvironment {
         self.scanStore = resolvedStore
         self.library = ScanLibrary(store: resolvedStore)
 
+        // Read unconditionally so the note is always cleared, but reported only
+        // in a normal run: a UI test that terminates the app mid-scan would
+        // otherwise leave a note and put an unexpected card on Home.
+        let unfinished = HardwarePhaseRecorder.takeUnfinishedPhase()
+        self.interruptedPhase = RuntimeMode.shouldResetPersistentState() ? nil : unfinished
+
         feedback.hapticsEnabled = self.preferences.hapticsEnabled
         feedback.soundEnabled = self.preferences.soundEnabled
 
@@ -108,6 +121,11 @@ final class AppEnvironment {
         guard RuntimeMode.shouldResetPersistentState() else { return nil }
         return FileManager.default.temporaryDirectory
             .appendingPathComponent("WallFieldUITests", isDirectory: true)
+    }
+
+    /// Dismisses the report of an interrupted hardware step.
+    func acknowledgeInterruptedPhase() {
+        interruptedPhase = nil
     }
 
     /// Re-reads the capabilities that can change while the app is running.

@@ -21,14 +21,16 @@ struct DiagnosticsView: View {
         .onAppear {
             if model == nil {
                 let environment = app
-                model = DiagnosticsModel(
-                    fieldService: environment.makeFieldService(),
-                    supportsAR: environment.capabilities.supportsWorldTracking,
-                    spatialProviderFactory: { environment.makeSpatialProvider() },
-                    capabilities: environment.capabilities,
-                    configuration: environment.preferences.detectorConfiguration,
-                    isSimulated: environment.runtimeMode.isSimulated
-                )
+                model = HardwarePhaseRecorder.attempting(.preparingDiagnostics) {
+                    DiagnosticsModel(
+                        fieldService: environment.makeFieldService(),
+                        supportsAR: environment.capabilities.supportsWorldTracking,
+                        spatialProviderFactory: { environment.makeSpatialProvider() },
+                        capabilities: environment.capabilities,
+                        configuration: environment.preferences.detectorConfiguration,
+                        isSimulated: environment.runtimeMode.isSimulated
+                    )
+                }
             }
             model?.start()
         }

@@ -191,7 +191,9 @@ final class ScanCoordinator {
         feedback.soundEnabled = preferences.soundEnabled
         feedback.prepare()
 
-        spatialProvider.start()
+        HardwarePhaseRecorder.attempting(.startingCamera) {
+            spatialProvider.start()
+        }
         if let problem = spatialProvider.problem {
             phase = .blocked(problem)
             return
@@ -202,7 +204,9 @@ final class ScanCoordinator {
 
     private func startSampling() {
         sampleTask?.cancel()
-        let stream = fieldService.start(preferredSampleRate: 50)
+        let stream = HardwarePhaseRecorder.attempting(.startingMagnetometer) {
+            fieldService.start(preferredSampleRate: 50)
+        }
         sampleTask = Task { @MainActor [weak self] in
             for await sample in stream {
                 guard let self else { break }

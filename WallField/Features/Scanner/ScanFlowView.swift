@@ -23,7 +23,9 @@ struct ScanFlowView: View {
         }
         .onAppear {
             if coordinator == nil {
-                coordinator = app.makeScanCoordinator()
+                coordinator = HardwarePhaseRecorder.attempting(.preparingScan) {
+                    app.makeScanCoordinator()
+                }
             }
         }
         .onDisappear {
