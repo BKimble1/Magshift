@@ -52,7 +52,7 @@ enum MarkerEntityFactory {
             materials: [UnlitMaterial(color: tint.withAlphaComponent(outerAlpha))]
         )
         outer.name = "outer"
-        outer.position = SIMD3<Float>(0, normalSign * outerOffset, 0)
+        outer.position = SIMD3<Float>(0, outerOffset, 0)
 
         let coreScale = cluster.confidence == .repeated ? repeatedCoreScale : unconfirmedCoreScale
         let coreRadius = radius * coreScale
@@ -64,13 +64,18 @@ enum MarkerEntityFactory {
             materials: [UnlitMaterial(color: coreColor)]
         )
         core.name = "core"
-        core.position = SIMD3<Float>(0, normalSign * innerOffset, 0)
+        core.position = SIMD3<Float>(0, innerOffset, 0)
 
         entity.addChild(outer)
         entity.addChild(core)
 
         // `generatePlane` faces the entity's +Y. When the wall normal points
         // along the anchor's -Y, flip the marker so it faces the viewer.
+        //
+        // The flip is a rotation of the whole entity, so it carries the children
+        // with it: the offsets above are expressed in the *rotated* frame, where
+        // +Y is outward by construction. Multiplying them by `normalSign` as well
+        // would apply the sign twice and push a flipped marker into the wall.
         entity.orientation = normalSign >= 0
             ? simd_quatf(ix: 0, iy: 0, iz: 0, r: 1)
             : simd_quatf(angle: .pi, axis: SIMD3<Float>(1, 0, 0))

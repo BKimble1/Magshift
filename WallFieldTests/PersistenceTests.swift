@@ -255,6 +255,21 @@ final class FileScanStoreTests: XCTestCase {
         XCTAssertTrue(result.records.isEmpty)
         XCTAssertTrue(result.problems.isEmpty)
     }
+
+    func testAnAbandonedTemporaryFileIsSweptUpRatherThanAccumulating() async throws {
+        let store = try makeStore()
+        // What a save interrupted between writing the temporary and moving it
+        // into place leaves behind. Nothing will ever complete it.
+        let abandoned = scansDirectory
+            .appendingPathComponent("\(UUID().uuidString).\(UUID().uuidString).tmp")
+        try Data("half a scan".utf8).write(to: abandoned)
+
+        let result = await store.load()
+
+        XCTAssertTrue(result.records.isEmpty)
+        XCTAssertTrue(result.problems.isEmpty, "a temporary file is not a damaged scan")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: abandoned.path))
+    }
 }
 
 final class InMemoryScanStoreTests: XCTestCase {

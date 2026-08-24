@@ -83,8 +83,11 @@ struct WallFrame: Codable, Sendable, Hashable {
         // Project world up into the plane.
         let projected = worldUp - simd_dot(worldUp, normal) * normal
         let projectedLength = simd_length(projected)
-        // 0.15 rad from vertical is roughly 8.6 degrees of tilt; beyond that the
-        // surface is not usefully "a wall" for this app's purposes.
+        // `projectedLength` is the sine of the angle between world up and the
+        // plane normal, so this rejects a plane whose normal is within about 8.6
+        // degrees of vertical -- that is, a surface lying close to horizontal,
+        // where "up on the wall" has no meaningful direction. It is deliberately
+        // permissive about tilt otherwise: a leaning wall is still a wall.
         guard projectedLength > 0.15 else { return nil }
         let up = projected / projectedLength
 

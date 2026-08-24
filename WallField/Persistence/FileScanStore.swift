@@ -50,6 +50,14 @@ actor FileScanStore: ScanStoring {
             options: [.skipsHiddenFiles]
         )) ?? []
 
+        // A save that was interrupted between writing the temporary file and
+        // moving it into place leaves the temporary behind. Nothing reads it and
+        // nothing will ever complete it, so loading is the natural moment to
+        // sweep it up rather than letting it accumulate in the container.
+        for url in contents where url.pathExtension == "tmp" {
+            try? fileManager.removeItem(at: url)
+        }
+
         for url in contents where url.pathExtension == "json" {
             let name = url.lastPathComponent
             let modified = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?

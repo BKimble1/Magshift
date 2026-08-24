@@ -133,6 +133,7 @@ final class DiagnosticsModel {
     private var recordingStartTimestamp: TimeInterval?
     private var chartCounter = 0
     private var chartLimiter = RateLimiter(hz: 5)
+    private var readoutLimiter = RateLimiter(hz: Theme.readoutUpdatesPerSecond)
 
     /// Hard cap on a recording: 20 minutes at 50 Hz. A recording that hits this
     /// stops rather than growing without bound, and says so.
@@ -210,6 +211,7 @@ final class DiagnosticsModel {
         recordingStartedAt = Date()
         recordingStartTimestamp = clock.now
         completedRun = nil
+        readoutLimiter.reset()
         isRecording = true
     }
 
@@ -217,6 +219,7 @@ final class DiagnosticsModel {
     func finishRecording() -> DiagnosticRun? {
         guard isRecording else { return nil }
         isRecording = false
+        recordedCount = recorded.count
         let run = DiagnosticRun(
             id: UUID(),
             label: runLabel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -303,16 +306,25 @@ final class DiagnosticsModel {
             trackingState: trackingQuality,
             raycastDistance: isARActive ? raycastDistance : nil
         )
-        latest = row
-
+        var isFinalRow = false
         if isRecording {
             if recorded.count < Self.maximumRecordedSamples {
                 recorded.append(row)
-                recordedCount = recorded.count
             } else if !didHitRecordingLimit {
                 didHitRecordingLimit = true
                 finishRecording()
+                isFinalRow = true
             }
+        }
+
+        // Every sample is recorded, but the numbers on screen are republished at
+        // the same rate as the scan HUD. `@Observable` invalidates observers on
+        // every write, so publishing `latest` per sample would redraw the whole
+        // diagnostics screen 50 times a second beside a chart that deliberately
+        // redraws at 5 Hz.
+        if readoutLimiter.allow(at: sample.timestamp) || isFinalRow {
+            latest = row
+            if isRecording { recordedCount = recorded.count }
         }
 
         if chartLimiter.allow(at: sample.timestamp) {

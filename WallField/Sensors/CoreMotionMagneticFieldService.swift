@@ -61,6 +61,11 @@ final class CoreMotionMagneticFieldService: MagneticFieldProviding {
     private var offsetSampleCount = 0
     private var offsetAccumulator: TimeInterval = 0
 
+    /// Incremented by every `start`. A stream's termination handler carries the
+    /// generation it belonged to, so a handler that fires late cannot stop a
+    /// stream that a later `start` has already put in its place.
+    private var generation = 0
+
     init(clock: any MonotonicClock = SystemMonotonicClock()) {
         self.clock = clock
         let queue = OperationQueue()
@@ -80,6 +85,8 @@ final class CoreMotionMagneticFieldService: MagneticFieldProviding {
 
     func start(preferredSampleRate: Double) -> AsyncStream<MagneticFieldSample> {
         stop()
+        generation &+= 1
+        let generation = self.generation
 
         let rate = max(1, min(preferredSampleRate, 100))
         requestedSampleRate = rate
@@ -111,11 +118,20 @@ final class CoreMotionMagneticFieldService: MagneticFieldProviding {
         continuation.onTermination = { [weak self] _ in
             // Termination can arrive on any thread when the consumer's task is
             // cancelled, so hop back to the main actor before touching state.
+            // That hop means the handler runs *after* whatever ran it, which may
+            // well be a `start` that has already installed a newer stream --
+            // hence the generation check rather than a bare `stop()`.
             Task { @MainActor [weak self] in
-                self?.stop()
+                self?.stopIfCurrent(generation: generation)
             }
         }
         return stream
+    }
+
+    /// Stops only if `generation` is still the live one.
+    private func stopIfCurrent(generation: Int) {
+        guard generation == self.generation else { return }
+        stop()
     }
 
     func stop() {

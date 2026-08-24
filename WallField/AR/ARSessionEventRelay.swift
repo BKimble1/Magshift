@@ -9,7 +9,9 @@ enum ARSessionEvent: Sendable {
     case failed(String)
     case interrupted
     case interruptionEnded
-    case relocalizationFailed
+    /// ARKit asked whether it should try to relocalise after an interruption and
+    /// was told not to. See `sessionShouldAttemptRelocalization(_:)`.
+    case relocalizationDeclined
 }
 
 /// Bridges `ARSessionDelegate` -- which is called on ARKit's own queue -- onto an
@@ -65,10 +67,16 @@ final class ARSessionEventRelay: NSObject, ARSessionDelegate, @unchecked Sendabl
 
     /// Returning `false` means ARKit will not silently re-place stale content
     /// after tracking is lost. A scan whose world origin has moved cannot have
-    /// its old wall coordinates trusted, so the app ends the scan rather than
-    /// pretending the markers are still where they were.
+    /// its old wall coordinates trusted.
+    ///
+    /// ARKit calls this *after an interruption ends*; it is a question, not a
+    /// report that relocalisation failed. The distinction matters: the answer is
+    /// always "no", but whether that ends the scan depends on whether there was
+    /// anything to invalidate, which only the controller knows. So the event
+    /// says what happened -- relocalisation was declined -- and
+    /// `ARSessionController` decides what it means.
     func sessionShouldAttemptRelocalization(_ session: ARSession) -> Bool {
-        continuation.yield(.relocalizationFailed)
+        continuation.yield(.relocalizationDeclined)
         return false
     }
 

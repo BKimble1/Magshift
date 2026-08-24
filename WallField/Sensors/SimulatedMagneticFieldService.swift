@@ -27,6 +27,10 @@ final class SimulatedMagneticFieldService: MagneticFieldProviding {
     private var nextTimestamp: TimeInterval?
     private var period: TimeInterval = 0.02
 
+    /// See `CoreMotionMagneticFieldService.generation`: a termination handler
+    /// must not stop a stream a later `start` has already replaced.
+    private var generation = 0
+
     /// The most samples one tick may emit while catching up. Beyond this the
     /// grid is resynchronised instead.
     private static let maximumBurst = 25
@@ -53,6 +57,8 @@ final class SimulatedMagneticFieldService: MagneticFieldProviding {
 
     func start(preferredSampleRate: Double) -> AsyncStream<MagneticFieldSample> {
         stop()
+        generation &+= 1
+        let generation = self.generation
         let rate = max(1, min(preferredSampleRate, 100))
         requestedSampleRate = rate
         rateTracker.reset()
@@ -69,17 +75,24 @@ final class SimulatedMagneticFieldService: MagneticFieldProviding {
         let periodNanoseconds = UInt64((1 / rate) * 1_000_000_000)
         emitTask = Task { @MainActor [weak self] in
             while !Task.isCancelled {
-                self?.emitSample()
+                guard let self else { break }
+                self.emitSample()
                 try? await Task.sleep(nanoseconds: periodNanoseconds)
             }
         }
 
         continuation.onTermination = { [weak self] _ in
             Task { @MainActor [weak self] in
-                self?.stop()
+                self?.stopIfCurrent(generation: generation)
             }
         }
         return stream
+    }
+
+    /// Stops only if `generation` is still the live one.
+    private func stopIfCurrent(generation: Int) {
+        guard generation == self.generation else { return }
+        stop()
     }
 
     func stop() {

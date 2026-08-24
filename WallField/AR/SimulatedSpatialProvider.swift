@@ -165,8 +165,11 @@ final class SimulatedSpatialProvider: ARSpatialProviding {
         previousCrosshair = crosshair
         previousTimestamp = now
 
-        trackingQuality = onWall ? .normal : .limited(.insufficientFeatures)
-        targetedWallID = onWall ? Self.wallID : nil
+        // Assigned only on change, for the reason given in `ARSessionController`.
+        let quality: TrackingQuality = onWall ? .normal : .limited(.insufficientFeatures)
+        let targeted: UUID? = onWall ? Self.wallID : nil
+        if trackingQuality != quality { trackingQuality = quality }
+        if targetedWallID != targeted { targetedWallID = targeted }
 
         let hit: WallHit?
         if let wall = lockedWall, onWall {
@@ -189,7 +192,7 @@ final class SimulatedSpatialProvider: ARSpatialProviding {
             cameraTransform: environment.cameraTransform,
             wallTransform: lockedWall?.anchorTransform ?? Self.anchorTransform,
             hit: hit,
-            tracking: trackingQuality,
+            tracking: quality,
             cameraSpeed: speed
         )
         spatialBuffer.append(sample)

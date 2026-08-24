@@ -285,10 +285,12 @@ final class ScanCoordinator {
     func startScanning() {
         guard calibration != nil else { return }
         guard phase == .wallLocked || phase == .paused || phase == .calibrating else { return }
-        if scanStartMonotonic == nil {
-            scanStartMonotonic = clock.now
-            scanStartDate = Date()
-        }
+        if scanStartMonotonic == nil { scanStartMonotonic = clock.now }
+        // Separate from the monotonic mark on purpose. `accumulateDuration`
+        // clears the monotonic mark on every pause, so folding both into one
+        // check would restamp `createdAt` as the last resume rather than the
+        // moment the scan actually began.
+        if scanStartDate == nil { scanStartDate = Date() }
         phase = .scanning
         setIdleTimerDisabled(true)
         simulatedEnvironment?.beginSweeping()
@@ -346,6 +348,7 @@ final class ScanCoordinator {
         trackingTotalSamples = 0
         accumulatedDuration = 0
         scanStartMonotonic = phase == .scanning ? clock.now : nil
+        scanStartDate = phase == .scanning ? Date() : nil
         elapsed = 0
     }
 
@@ -438,9 +441,14 @@ final class ScanCoordinator {
         pending.timing = fieldService.timingHealth
         pending.source = sample.source
 
-        if let newest = spatialProvider.newestSpatialSample {
-            pending.wallDistance = newest.hit?.distanceFromCamera
-            pending.cameraSpeed = newest.cameraSpeed
+        let newest = spatialProvider.newestSpatialSample
+        pending.wallDistance = newest?.hit?.distanceFromCamera
+        pending.cameraSpeed = newest?.cameraSpeed ?? 0
+        // Only sampled while measuring. `trackingNormalFraction` describes the
+        // scan; counting the wall-mapping phase -- where tracking is routinely
+        // limited while ARKit finds planes -- would understate it for reasons
+        // that have nothing to do with the readings.
+        if let newest, phase == .scanning {
             trackingTotalSamples += 1
             if newest.tracking.permitsPlacement { trackingNormalSamples += 1 }
         }
@@ -454,14 +462,19 @@ final class ScanCoordinator {
             break
         }
 
-        obstruction = qualityGate.liveObstruction(
+        // Assigned only when it changes. `@Observable` has no equality check in
+        // its setter, so writing the same value still invalidates every view
+        // reading it -- which at sensor rate would redraw the HUD 50 times a
+        // second and defeat the throttle below.
+        let liveObstruction = qualityGate.liveObstruction(
             availability: fieldService.availability,
             timing: fieldService.timingHealth,
             isCalibrated: calibration != nil,
             isWallLocked: lockedWall != nil,
             accuracy: sample.accuracy,
-            newest: spatialProvider.newestSpatialSample
+            newest: newest
         )
+        if liveObstruction != obstruction { obstruction = liveObstruction }
 
         // Throttled publication: the sensor runs at ~50 Hz, the HUD at 10 Hz.
         if readoutLimiter.allow(at: sample.timestamp) {
@@ -594,9 +607,16 @@ final class ScanCoordinator {
         phase = lockedWall == nil ? .mappingWall : (calibration == nil ? .wallLocked : .paused)
     }
 
+    /// Republishes `elapsed` at a tenth of a second.
+    ///
+    /// It is rendered as `M:SS`, so a finer step would invalidate the HUD at
+    /// sensor rate to show a number that cannot change. `accumulateDuration` and
+    /// `resetMeasurements` still write exact values, so the stored duration is
+    /// never approximate.
     private func updateElapsed() {
         guard let start = scanStartMonotonic, phase == .scanning else { return }
-        elapsed = accumulatedDuration + max(0, clock.now - start)
+        let updated = accumulatedDuration + max(0, clock.now - start)
+        if abs(updated - elapsed) >= 0.1 { elapsed = updated }
     }
 
     private func accumulateDuration() {

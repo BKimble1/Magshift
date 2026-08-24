@@ -133,8 +133,12 @@ final class SimulatedEnvironment {
         guard tickTask == nil else { return }
         lastTick = nil
         tickTask = Task { @MainActor [weak self] in
+            // Breaking on a released environment matters: `try? await sleep`
+            // swallows cancellation, so a loop that only tested `self?` would
+            // keep waking every 16 ms for the life of the process.
             while !Task.isCancelled {
-                self?.tick()
+                guard let self else { break }
+                self.tick()
                 try? await Task.sleep(for: .milliseconds(16))
             }
         }

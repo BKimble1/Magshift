@@ -244,7 +244,7 @@ final class ARSessionController: ARSpatialProviding {
             }
 
         case .trackingChanged(let quality):
-            trackingQuality = quality
+            if trackingQuality != quality { trackingQuality = quality }
 
         case .failed(let message):
             problem = .sessionFailed(message)
@@ -257,8 +257,18 @@ final class ARSessionController: ARSpatialProviding {
         case .interruptionEnded:
             if problem == .interrupted { problem = nil }
 
-        case .relocalizationFailed:
-            problem = .relocalizationFailed
+        case .relocalizationDeclined:
+            // Relocalisation is always refused (see the delegate method), but
+            // refusing it only *costs* something when there was a locked wall
+            // whose coordinates the markers depend on. With nothing locked there
+            // is nothing to invalidate, so tracking restarts from scratch and the
+            // user carries on mapping instead of being sent back to Home.
+            if lockedWall == nil {
+                Log.ar.notice("Relocalisation declined with no wall locked; restarting tracking.")
+                resetTracking()
+            } else {
+                problem = .relocalizationFailed
+            }
         }
     }
 
@@ -271,7 +281,9 @@ final class ARSessionController: ARSpatialProviding {
 
         let cameraTransform = frame.camera.transform
         let quality = TrackingQuality(frame.camera.trackingState)
-        trackingQuality = quality
+        // Assigned only on change. `@Observable` invalidates observers on every
+        // write regardless of equality, and this runs once per rendered frame.
+        if trackingQuality != quality { trackingQuality = quality }
 
         let cameraPosition = cameraTransform.translation
         if let previousPosition = previousCameraPosition,
@@ -285,14 +297,17 @@ final class ARSessionController: ARSpatialProviding {
         previousCameraPosition = cameraPosition
         previousSampleTime = now
 
+        let hit: WallHit?
+        let targeted: UUID?
         if let wall = lockedWall {
-            currentHit = performRaycast(for: wall, cameraPosition: cameraPosition)
-            targetedWallID = wall.id
+            hit = performRaycast(for: wall, cameraPosition: cameraPosition)
+            targeted = wall.id
         } else {
-            currentHit = nil
-            targetedWallID = raycastAnyVerticalPlane()
+            hit = nil
+            targeted = raycastAnyVerticalPlane()
         }
-        let hit = currentHit
+        currentHit = hit
+        if targetedWallID != targeted { targetedWallID = targeted }
 
         let sample = SpatialSample(
             timestamp: now,

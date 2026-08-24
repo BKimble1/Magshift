@@ -325,6 +325,31 @@ final class ScanCoordinatorTests: XCTestCase {
         XCTAssertTrue(result.records.isEmpty)
     }
 
+    // MARK: - Quality summary
+
+    func testTrackingFractionDescribesTheScanNotTheWalkUp() async throws {
+        let coordinator = makeCoordinator()
+        coordinator.beginSession()
+
+        // Mapping a wall with tracking limited is routine -- ARKit reports
+        // `.initializing` until it has enough features -- and it is not part of
+        // the measurement, so it must not count against the scan's tracking
+        // fraction.
+        spatial.trackingQuality = .limited(.initializing)
+        await feed(count: 40) { _ in 48 }
+
+        spatial.trackingQuality = .normal
+        coordinator.lockTargetedWall()
+        coordinator.startCalibration()
+        await feed(count: 200, from: 40) { _ in 48 }
+        coordinator.startScanning()
+        await feed(count: 60, from: 240) { $0 < 260 ? 48 : 58 }
+        coordinator.finish()
+
+        let draft = try XCTUnwrap(coordinator.draftRecord)
+        XCTAssertEqual(draft.quality.trackingNormalFraction, 1, accuracy: 0.0001)
+    }
+
     // MARK: - Helpers
 
     /// A coordinator that has started, locked a wall and calibrated.

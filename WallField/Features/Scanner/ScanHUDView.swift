@@ -29,7 +29,10 @@ struct ScanHUDView: View {
                 }
             }
             Spacer(minLength: 0)
-            Crosshair(isActive: coordinator.currentHit != nil && !isPaused)
+            // Driven by the throttled readout rather than `currentHit`, which is
+            // recomputed every rendered frame: reading it here would invalidate
+            // the whole HUD at frame rate to animate a two-state crosshair.
+            Crosshair(isActive: coordinator.readout.wallDistance != nil && !isPaused)
             Spacer(minLength: 0)
             if let obstruction = coordinator.obstruction {
                 obstructionBanner(obstruction)
