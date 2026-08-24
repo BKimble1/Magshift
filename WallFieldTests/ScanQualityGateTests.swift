@@ -13,6 +13,10 @@ final class ScanQualityGateTests: XCTestCase {
         isWallLocked: Bool = true,
         candidate: AnomalyCandidate? = nil,
         match: SpatialMatch? = nil,
+        // Separate from `match` on purpose. `match: nil` means "use the default
+        // one", so without this there is no way to express the case that matters
+        // most -- no pose close enough in time to anchor the reading at all.
+        hasPose: Bool = true,
         clusterCount: Int = 0
     ) -> ScanQualityInputs {
         ScanQualityInputs(
@@ -21,7 +25,7 @@ final class ScanQualityGateTests: XCTestCase {
             isCalibrated: isCalibrated,
             isWallLocked: isWallLocked,
             candidate: candidate ?? Fixture.candidate(),
-            match: match ?? Fixture.match(at: Fixture.baseTimestamp),
+            match: hasPose ? (match ?? Fixture.match(at: Fixture.baseTimestamp)) : nil,
             clusterCount: clusterCount
         )
     }
@@ -79,7 +83,7 @@ final class ScanQualityGateTests: XCTestCase {
     }
 
     func testRejectsWhenNoPoseIsCloseEnoughInTime() {
-        let verdict = gate.evaluate(inputs(match: nil))
+        let verdict = gate.evaluate(inputs(hasPose: false))
         XCTAssertFalse(verdict.accepts)
         XCTAssertTrue(verdict.blocking.contains(.timingMismatch))
     }

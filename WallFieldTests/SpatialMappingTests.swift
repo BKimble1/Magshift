@@ -194,10 +194,16 @@ final class SpatialSampleBufferTests: XCTestCase {
     func testToleranceBoundaryIsInclusive() throws {
         var poses = SpatialSampleBuffer(capacity: 10)
         poses.append(Fixture.spatialSample(at: 1.0))
-        XCTAssertNotNil(poses.match(timestamp: 1.1, tolerance: 0.1))
-        XCTAssertNil(poses.match(timestamp: 1.1001, tolerance: 0.1))
-        let match = try XCTUnwrap(poses.match(timestamp: 1.05, tolerance: 0.1))
-        XCTAssertEqual(match.timingError, 0.05, accuracy: 1e-9)
+        // The offsets are binary fractions so the boundary really is the
+        // boundary. `1.1 - 1.0` is 0.10000000000000009 in a Double, which is
+        // *outside* a tolerance of 0.1 -- the buffer would be right to refuse it,
+        // and the test would be measuring floating-point representation rather
+        // than the rule it means to pin down.
+        let tolerance = 0.125
+        XCTAssertNotNil(poses.match(timestamp: 1.125, tolerance: tolerance))
+        XCTAssertNil(poses.match(timestamp: 1.126, tolerance: tolerance))
+        let match = try XCTUnwrap(poses.match(timestamp: 1.0625, tolerance: tolerance))
+        XCTAssertEqual(match.timingError, 0.0625, accuracy: 1e-9)
     }
 
     func testEmptyBufferMatchesNothing() {

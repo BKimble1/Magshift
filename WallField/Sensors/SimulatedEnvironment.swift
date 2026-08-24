@@ -269,7 +269,12 @@ final class SimulatedEnvironment {
         case .still:
             return MotionEnergy(userAcceleration: 0.004, rotationRate: 0.01)
         case .sweeping:
-            return MotionEnergy(userAcceleration: 0.03, rotationRate: 0.12)
+            // Above `MotionEnergy.steadyAccelerationLimit` on purpose. Sweeping a
+            // wall is not "holding the phone steady", and if the simulated values sat
+            // below the limit then `CalibrationRejection.excessiveMotion` -- the
+            // rule that stops a baseline being measured mid-sweep -- could never
+            // be reached on simulated data at all.
+            return MotionEnergy(userAcceleration: 0.09, rotationRate: 0.45)
         }
     }
 

@@ -21,6 +21,15 @@ final class WallFieldUITests: XCTestCase {
         continueAfterFailure = false
     }
 
+    /// The number of marks the HUD badge reports.
+    ///
+    /// The badge's accessibility label is a whole sentence -- "3 magnetic
+    /// anomalies mapped" -- because a bare "3" would tell a screen-reader user
+    /// nothing. So the count is its leading integer, not the label itself.
+    private func markCount(_ element: XCUIElement) -> Int {
+        Int(element.label.prefix { $0.isNumber }) ?? 0
+    }
+
     private func launch(extraArguments: [String] = []) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = ["-WallFieldDemoMode", "-WallFieldResetState"] + extraArguments
@@ -141,7 +150,7 @@ final class WallFieldUITests: XCTestCase {
         let clusterCount = app.staticTexts[A11yID.clusterCount]
         XCTAssertTrue(clusterCount.waitForExistence(timeout: 10))
         XCTAssertTrue(
-            waitUntil(timeout: passDuration + 8) { (Int(clusterCount.label) ?? 0) > 0 },
+            waitUntil(timeout: passDuration + 8) { markCount(clusterCount) > 0 },
             "the simulated sweep produced no magnetic anomalies"
         )
 
@@ -153,9 +162,9 @@ final class WallFieldUITests: XCTestCase {
         XCTAssertTrue(app.buttons[A11yID.pause].waitForExistence(timeout: 5))
 
         // A second pass over the same region.
-        let firstPassCount = Int(clusterCount.label) ?? 0
+        let firstPassCount = markCount(clusterCount)
         app.buttons[A11yID.newPass].tap()
-        _ = waitUntil(timeout: passDuration + 6) { (Int(clusterCount.label) ?? 0) >= firstPassCount }
+        _ = waitUntil(timeout: passDuration + 6) { markCount(clusterCount) >= firstPassCount }
 
         // Finish and review.
         app.buttons[A11yID.finish].tap()
@@ -196,20 +205,20 @@ final class WallFieldUITests: XCTestCase {
 
         let clusterCount = app.staticTexts[A11yID.clusterCount]
         XCTAssertTrue(
-            waitUntil(timeout: passDuration + 8) { (Int(clusterCount.label) ?? 0) > 0 },
+            waitUntil(timeout: passDuration + 8) { markCount(clusterCount) > 0 },
             "no marks to undo"
         )
 
-        let before = Int(clusterCount.label) ?? 0
+        let before = markCount(clusterCount)
         app.buttons[A11yID.undo].tap()
-        XCTAssertTrue(waitUntil(timeout: 5) { (Int(clusterCount.label) ?? 0) < before })
+        XCTAssertTrue(waitUntil(timeout: 5) { markCount(clusterCount) < before })
 
         app.buttons[A11yID.reset].tap()
         let confirmReset = app.buttons["Remove all marks"]
         XCTAssertTrue(confirmReset.waitForExistence(timeout: 5),
                       "removing every mark must ask first")
         confirmReset.tap()
-        XCTAssertTrue(waitUntil(timeout: 5) { clusterCount.label == "0" })
+        XCTAssertTrue(waitUntil(timeout: 5) { markCount(clusterCount) == 0 })
     }
 
     func testSafetyInformationIsReachableWhileScanning() {
