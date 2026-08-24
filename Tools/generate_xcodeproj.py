@@ -23,7 +23,7 @@ ORGANIZATION = "Idlery Services LLC"
 APP_NAME = "WallField"
 UNIT_TESTS = "WallFieldTests"
 UI_TESTS = "WallFieldUITests"
-DEFAULT_BUNDLE_ID = "com.idlery.wallfield"
+DEFAULT_BUNDLE_ID = "com.idlery.magshift"
 
 
 def gid(name: str) -> str:

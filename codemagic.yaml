@@ -270,12 +270,12 @@ workflows:
       # runs. `xcode-project use-profiles` then applies them to the project.
       ios_signing:
         distribution_type: app_store
-        bundle_identifier: com.idlery.wallfield
+        bundle_identifier: com.idlery.magshift
 
       vars:
         XCODE_PROJECT: "WallField.xcodeproj"
         XCODE_SCHEME: "WallField"
-        BUNDLE_ID: "com.idlery.wallfield"
+        BUNDLE_ID: "com.idlery.magshift"
         MINIMUM_XCODE_VERSION: "26.4"
         MINIMUM_IOS_SDK_VERSION: "26.0"
 

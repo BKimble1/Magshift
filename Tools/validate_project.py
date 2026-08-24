@@ -38,6 +38,22 @@ def check(condition: bool, message: str) -> bool:
     return bool(condition)
 
 
+def read_xcconfig_value(relative_path: str, key: str) -> str | None:
+    """The value of a build setting in an xcconfig, ignoring commented-out lines."""
+    path = os.path.join(ROOT, relative_path)
+    if not os.path.isfile(path):
+        return None
+    with open(path, "r", encoding="utf-8") as handle:
+        for line in handle:
+            stripped = line.strip()
+            if stripped.startswith("//"):
+                continue
+            match = re.match(rf"^{re.escape(key)}\s*=\s*(.*)$", stripped)
+            if match:
+                return match.group(1).strip()
+    return None
+
+
 def walk_ids(value, out: set[str]) -> None:
     if isinstance(value, str):
         if ID_RE.match(value):
@@ -157,6 +173,21 @@ def main() -> int:
     check(unit.get("BUNDLE_LOADER") == "$(TEST_HOST)", "WallFieldTests: BUNDLE_LOADER must be $(TEST_HOST)")
     ui = target_settings("WallFieldUITests")
     check(ui.get("TEST_TARGET_NAME") == "WallField", "WallFieldUITests: TEST_TARGET_NAME must be WallField")
+
+    # The app's bundle identifier is the single source of truth. The two test
+    # bundles derive from it, and are never registered with Apple -- but leaving
+    # one behind after a rename is a silent inconsistency that only shows up in a
+    # signing log months later.
+    app_bundle_id = read_xcconfig_value("Config/Signing.xcconfig", "PRODUCT_BUNDLE_IDENTIFIER")
+    check(bool(app_bundle_id),
+          "Config/Signing.xcconfig declares no PRODUCT_BUNDLE_IDENTIFIER")
+    for target_name, suffix, settings in (("WallFieldTests", "unittests", unit),
+                                          ("WallFieldUITests", "uitests", ui)):
+        expected = f"{app_bundle_id}.{suffix}"
+        check(settings.get("PRODUCT_BUNDLE_IDENTIFIER") == expected,
+              f"{target_name}: bundle identifier is "
+              f"{settings.get('PRODUCT_BUNDLE_IDENTIFIER')!r}, expected {expected!r} "
+              "derived from the app's")
 
     app = target_settings("WallField")
     check(app.get("GENERATE_INFOPLIST_FILE") == "NO", "WallField: expected an explicit Info.plist")

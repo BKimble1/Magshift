@@ -145,7 +145,7 @@ has a branch trigger, so neither can start from a push.
 | Workflow | What it does |
 |---|---|
 | `wallfield-simulator-tests` | Verifies the toolchain is Xcode 26.4+ with the iOS 26 SDK, runs `Tools/check_all.sh`, compiles the app for a **discovered** iOS Simulator, then builds and runs every unit and UI test. Signs nothing, publishes nothing. Keeps the `.xcresult` bundle and all build logs as artifacts. |
-| `wallfield-testflight` | Everything above, then chooses a unique increasing build number, applies automatically fetched App Store signing for `com.idlery.wallfield`, archives, exports a normal App Store IPA, verifies it, and uploads it to App Store Connect and TestFlight. |
+| `wallfield-testflight` | Everything above, then chooses a unique increasing build number, applies automatically fetched App Store signing for `com.idlery.magshift`, archives, exports a normal App Store IPA, verifies it, and uploads it to App Store Connect and TestFlight. |
 
 The simulator is never named in the configuration. `Tools/select_simulator.py`
 reads what `simctl` reports and picks the newest available iPhone on the newest

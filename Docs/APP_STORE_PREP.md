@@ -11,7 +11,7 @@ repository.
 | # | Item | Owner | Status |
 |---|---|---|---|
 | 1 | Apple Team ID and signing certificate | Idlery Services LLC | **BLOCKING** — never commit these; see `Config/Signing.xcconfig` |
-| 2 | Bundle identifier registered in App Store Connect | Idlery Services LLC | **BLOCKING** — `com.idlery.wallfield` is a suggestion |
+| 2 | Bundle identifier registered in App Store Connect | Idlery Services LLC | **BLOCKING** — `com.idlery.magshift` is a suggestion |
 | 3 | Published support URL | Idlery Services LLC | **BLOCKING** — `Branding.supportURL` is deliberately `nil`, and Settings hides the row rather than shipping a dead control |
 | 4 | Published privacy-policy URL | Idlery Services LLC | **BLOCKING** — same, `Branding.privacyPolicyURL`; content is in `Docs/PRIVACY.md` |
 | 5 | Physical-device validation | Engineering | **BLOCKING** — `Docs/VALIDATION_PROTOCOL.md` §8 is entirely unperformed |

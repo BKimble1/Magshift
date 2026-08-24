@@ -8,12 +8,12 @@
 //      tick "Automatically manage signing" and pick your team; or
 //   2. Create Config/Signing.local.xcconfig (git-ignored) containing:
 //         DEVELOPMENT_TEAM = YOURTEAMID
-//         PRODUCT_BUNDLE_IDENTIFIER = com.yourcompany.wallfield
+//         PRODUCT_BUNDLE_IDENTIFIER = com.yourcompany.magshift
 //
 // The optional include below picks that local file up automatically if present.
 
 DEVELOPMENT_TEAM =
 CODE_SIGN_STYLE = Automatic
-PRODUCT_BUNDLE_IDENTIFIER = com.idlery.wallfield
+PRODUCT_BUNDLE_IDENTIFIER = com.idlery.magshift
 
 #include? "Signing.local.xcconfig"
