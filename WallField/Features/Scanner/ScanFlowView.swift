@@ -133,9 +133,14 @@ private struct ScanFlowContent: View {
     @ViewBuilder
     private var cameraLayer: some View {
         switch coordinator.phase {
-        case .preparing, .finished:
+        case .preparing, .finished, .blocked:
+            // Nothing AR-backed is presented while blocked. The blocked screen
+            // exists precisely because the session could not run -- on an
+            // unsupported device or without camera access -- and putting a live
+            // camera view behind that message would ask the AR stack to do the
+            // one thing it has just said it cannot do.
             Color.black
-        case .mappingWall, .wallLocked, .calibrating, .scanning, .paused, .blocked:
+        case .mappingWall, .wallLocked, .calibrating, .scanning, .paused:
             if let controller = coordinator.arSessionController {
                 ARViewContainer(
                     controller: controller,

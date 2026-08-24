@@ -20,14 +20,14 @@ struct DiagnosticsView: View {
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
             if model == nil {
+                let environment = app
                 model = DiagnosticsModel(
-                    fieldService: app.makeFieldService(),
-                    spatialProvider: app.capabilities.supportsWorldTracking
-                        ? app.makeSpatialProvider()
-                        : nil,
-                    capabilities: app.capabilities,
-                    configuration: app.preferences.detectorConfiguration,
-                    isSimulated: app.runtimeMode.isSimulated
+                    fieldService: environment.makeFieldService(),
+                    supportsAR: environment.capabilities.supportsWorldTracking,
+                    spatialProviderFactory: { environment.makeSpatialProvider() },
+                    capabilities: environment.capabilities,
+                    configuration: environment.preferences.detectorConfiguration,
+                    isSimulated: environment.runtimeMode.isSimulated
                 )
             }
             model?.start()
@@ -271,7 +271,7 @@ struct DiagnosticsView: View {
 
     @ViewBuilder
     private func arCard(model: DiagnosticsModel) -> some View {
-        if app.capabilities.supportsWorldTracking {
+        if model.supportsAR {
             Card(title: "AR tracking", systemImage: "arkit") {
                 VStack(alignment: .leading, spacing: Theme.Spacing.small) {
                     Toggle("Run an AR session", isOn: Binding(

@@ -60,6 +60,7 @@ enum A11y {
     static let onboardingContinue = "onboarding.continue"
     static let onboardingAcknowledgeToggle = "onboarding.acknowledge.toggle"
     static let onboardingAcceptButton = "onboarding.accept"
+    static let onboardingAllowCamera = "onboarding.allowCamera"
 
     static let homeNewScan = "home.newScan"
     static let homeHistory = "home.history"

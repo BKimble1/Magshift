@@ -1,62 +1,27 @@
 import SwiftUI
 
-/// One page of onboarding.
-struct OnboardingPage: Identifiable, Hashable {
-    var id: String { title }
-    var systemImage: String
-    var title: String
-    var body: String
-    var points: [String]
-
-    static let pages: [OnboardingPage] = [
-        OnboardingPage(
-            systemImage: "waveform.path.ecg",
-            title: "What \(Branding.productName) measures",
-            body: SafetyCopy.whatItMeasures,
-            points: []
-        ),
-        OnboardingPage(
-            systemImage: "eye.slash",
-            title: "What it cannot determine",
-            body: SafetyCopy.whatItCannotDo,
-            points: [
-                SafetyCopy.whyMaterialsMatter,
-                SafetyCopy.aboutWiring,
-                SafetyCopy.absenceIsNotEvidence,
-            ]
-        ),
-        OnboardingPage(
-            systemImage: "magnet",
-            title: "Magnets ruin readings",
-            body: SafetyCopy.whyReadingsGetDistorted,
-            points: []
-        ),
-        OnboardingPage(
-            systemImage: "arkit",
-            title: "How wall mapping works",
-            body: SafetyCopy.howARMappingWorks,
-            points: []
-        ),
-        OnboardingPage(
-            systemImage: "hand.draw",
-            title: "How to scan",
-            body: SafetyCopy.howToScan,
-            points: []
-        ),
-    ]
-}
-
 /// First-run flow, and the flow shown again when the safety wording changes.
 ///
-/// The last page is not a summary: it is a decision the user has to make, with
-/// an explicit control they must operate. Tapping through cannot accept it.
+/// # Why it is two screens
+///
+/// It used to be six: five pages of explanation followed by the acknowledgement.
+/// All of that copy still exists and is one tap away from Home -- "How it works"
+/// and the safety page render it in full -- but making a first-time user read it
+/// before they can reach anything did not make them read it. First run now says
+/// what the app does, asks for the one permission it needs, and asks for the one
+/// acknowledgement it must have.
+///
+/// The acknowledgement is unchanged in kind: the last screen is a decision, with
+/// an explicit control the user has to operate. Tapping through cannot accept it.
 struct OnboardingFlowView: View {
     @Environment(AppEnvironment.self) private var app
     @State private var pageIndex = 0
     @State private var hasAcknowledged = false
+    @State private var cameraAuthorization = DeviceCapabilities.readCameraAuthorization()
+    @State private var isRequestingCamera = false
+    @State private var isPresentingSafety = false
 
-    private var pages: [OnboardingPage] { OnboardingPage.pages }
-    private var isOnAcknowledgement: Bool { pageIndex >= pages.count }
+    private var isOnAcknowledgement: Bool { pageIndex >= 1 }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -68,12 +33,10 @@ struct OnboardingFlowView: View {
             }
 
             TabView(selection: $pageIndex) {
-                ForEach(Array(pages.enumerated()), id: \.element.id) { index, page in
-                    OnboardingPageView(page: page)
-                        .tag(index)
-                }
+                introPage
+                    .tag(0)
                 acknowledgementPage
-                    .tag(pages.count)
+                    .tag(1)
             }
             .tabViewStyle(.page(indexDisplayMode: .always))
             .indexViewStyle(.page(backgroundDisplayMode: .always))
@@ -82,6 +45,9 @@ struct OnboardingFlowView: View {
                 .padding(Theme.Spacing.medium)
         }
         .background(Color(uiColor: .systemBackground))
+        .sheet(isPresented: $isPresentingSafety) {
+            SafetyPageView()
+        }
     }
 
     private var revisedNotice: some View {
@@ -92,6 +58,40 @@ struct OnboardingFlowView: View {
             .padding(.top, Theme.Spacing.small)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
+
+    // MARK: - Page one
+
+    private var introPage: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: Theme.Spacing.large) {
+                Image(systemName: "waveform.path.ecg")
+                    .font(.system(size: 44))
+                    .foregroundStyle(Palette.accent)
+                    .accessibilityHidden(true)
+
+                Text("What \(Branding.productName) does")
+                    .font(Theme.Typography.screenTitle)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Text(SafetyCopy.inShort)
+                    .font(Theme.Typography.body)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Card(title: "What it cannot do", systemImage: "eye.slash") {
+                    BulletList(items: SafetyCopy.firstRunLimits)
+                }
+
+                Button("Read the full safety and limitations") {
+                    isPresentingSafety = true
+                }
+                .buttonStyle(SecondaryButtonStyle())
+            }
+            .padding(Theme.Spacing.large)
+            .padding(.bottom, Theme.Spacing.extraLarge)
+        }
+    }
+
+    // MARK: - Page two
 
     private var acknowledgementPage: some View {
         ScrollView {
@@ -108,6 +108,12 @@ struct OnboardingFlowView: View {
                 Text(SafetyCopy.canonicalStatement)
                     .font(Theme.Typography.body)
                     .fixedSize(horizontal: false, vertical: true)
+
+                // Simulated data never opens the camera, and asking for access
+                // there would put a system alert in front of the UI tests.
+                if !app.runtimeMode.isSimulated {
+                    cameraAccessCard
+                }
 
                 Card(title: SafetyCopy.beforeYouDrillTitle, systemImage: "exclamationmark.triangle") {
                     BulletList(items: SafetyCopy.beforeYouDrillPoints)
@@ -127,8 +133,49 @@ struct OnboardingFlowView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             .padding(Theme.Spacing.large)
+            .padding(.bottom, Theme.Spacing.extraLarge)
         }
     }
+
+    private var cameraAccessCard: some View {
+        Card(title: "Camera access", systemImage: "camera") {
+            VStack(alignment: .leading, spacing: Theme.Spacing.small) {
+                Text(SafetyCopy.whyCameraAccess)
+                    .font(Theme.Typography.body)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                switch cameraAuthorization {
+                case .authorized:
+                    Label("Camera access allowed", systemImage: "checkmark.circle.fill")
+                        .font(Theme.Typography.body)
+                        .foregroundStyle(Palette.accent)
+                case .notDetermined:
+                    Button("Allow camera access") {
+                        requestCameraAccess()
+                    }
+                    .buttonStyle(SecondaryButtonStyle())
+                    .disabled(isRequestingCamera)
+                    .accessibilityIdentifier(A11y.onboardingAllowCamera)
+                case .denied:
+                    Text("Camera access is off, so scanning is not possible. Sensor diagnostics "
+                        + "still work, and you can turn the camera on later in Settings.")
+                        .font(Theme.Typography.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Button("Open Settings") { SystemSettings.open() }
+                        .buttonStyle(SecondaryButtonStyle())
+                case .restricted:
+                    Text("Camera access is restricted on this device, so scanning is not possible. "
+                        + "Sensor diagnostics still work.")
+                        .font(Theme.Typography.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+    }
+
+    // MARK: - Footer
 
     @ViewBuilder
     private var footer: some View {
@@ -150,37 +197,17 @@ struct OnboardingFlowView: View {
             .accessibilityIdentifier(A11y.onboardingContinue)
         }
     }
-}
 
-private struct OnboardingPageView: View {
-    let page: OnboardingPage
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: Theme.Spacing.large) {
-                Image(systemName: page.systemImage)
-                    .font(.system(size: 44))
-                    .foregroundStyle(Palette.accent)
-                    .accessibilityHidden(true)
-                Text(page.title)
-                    .font(Theme.Typography.screenTitle)
-                    .fixedSize(horizontal: false, vertical: true)
-                Text(page.body)
-                    .font(Theme.Typography.body)
-                    .fixedSize(horizontal: false, vertical: true)
-                if !page.points.isEmpty {
-                    VStack(alignment: .leading, spacing: Theme.Spacing.medium) {
-                        ForEach(page.points, id: \.self) { point in
-                            Text(point)
-                                .font(Theme.Typography.body)
-                                .foregroundStyle(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                    }
-                }
-            }
-            .padding(Theme.Spacing.large)
-            .padding(.bottom, Theme.Spacing.extraLarge)
+    @MainActor
+    private func requestCameraAccess() {
+        guard !isRequestingCamera else { return }
+        isRequestingCamera = true
+        Task {
+            cameraAuthorization = await DeviceCapabilities.requestCameraAccess()
+            // Everything downstream reads the environment's copy, which was taken
+            // at launch and is now out of date.
+            app.refreshCapabilities()
+            isRequestingCamera = false
         }
     }
 }

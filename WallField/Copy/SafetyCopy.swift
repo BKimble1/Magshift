@@ -52,6 +52,33 @@ enum SafetyCopy {
     /// Always displayed immediately beneath `noAnomalyHeadline`.
     static let noAnomalySubtitle = "This does not mean the area is safe to drill."
 
+    // MARK: - First run
+
+    /// The whole of what the app does, in one short paragraph.
+    ///
+    /// Onboarding used to open with five pages of explanation before a first-time
+    /// user could reach anything. The detail did not disappear -- all of it is on
+    /// the safety page and the "How it works" page, both reachable from Home --
+    /// but first run now says the short version and gets out of the way.
+    static let inShort = """
+        Your iPhone can measure the magnetic field around it. \(Branding.productName) records that \
+        field while you move the phone across a wall, and marks the places where it changes more \
+        than the surrounding noise explains.
+        """
+
+    /// The three things a first-time user has to understand, one line each.
+    static let firstRunLimits: [String] = [
+        "It cannot show you what is behind a wall, tell you what caused a reading, or measure depth.",
+        "Magnets ruin readings. Take off MagSafe wallets, magnetic cases and mounts before scanning.",
+        "A quiet reading is never evidence that a spot is safe to drill.",
+    ]
+
+    /// Why camera access is asked for, in the sentence beside the button.
+    static let whyCameraAccess = """
+        \(Branding.productName) uses the camera to recognise the wall in front of you and keep every \
+        reading attached to the spot it was measured. Video never leaves your iPhone.
+        """
+
     // MARK: - What the app measures
 
     static let whatItMeasures = """

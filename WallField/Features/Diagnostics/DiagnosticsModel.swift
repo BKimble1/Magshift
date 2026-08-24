@@ -70,7 +70,16 @@ final class DiagnosticsModel {
     // MARK: - Dependencies
 
     private let fieldService: any MagneticFieldProviding
-    private let spatialProvider: (any ARSpatialProviding)?
+
+    /// Builds a spatial provider, or returns `nil` when this device has no AR to
+    /// offer. Called at most once, and only when AR is actually switched on.
+    ///
+    /// A factory rather than an instance because this screen's job is the
+    /// magnetometer: AR is an optional extra that most diagnostic runs never
+    /// touch. Holding an instance meant opening Sensor diagnostics built the
+    /// whole ARKit and RealityKit stack before a single number was on screen.
+    private let spatialProviderFactory: @MainActor () -> (any ARSpatialProviding)?
+    private var spatialProvider: (any ARSpatialProviding)?
     private let capabilities: DeviceCapabilities
     private let configuration: DetectorConfiguration
     private let clock: any MonotonicClock
@@ -107,6 +116,8 @@ final class DiagnosticsModel {
     var targetedWallID: UUID? { isARActive ? spatialProvider?.targetedWallID : nil }
     var isWallLocked: Bool { spatialProvider?.lockedWall != nil }
     var arSessionController: ARSessionController? { spatialProvider as? ARSessionController }
+    /// Whether the AR section should be offered at all.
+    let supportsAR: Bool
     var coreMotionClockOffset: TimeInterval? {
         (fieldService as? CoreMotionMagneticFieldService)?.observedCoreMotionClockOffset
     }
@@ -144,14 +155,16 @@ final class DiagnosticsModel {
 
     init(
         fieldService: any MagneticFieldProviding,
-        spatialProvider: (any ARSpatialProviding)?,
+        supportsAR: Bool,
+        spatialProviderFactory: @escaping @MainActor () -> (any ARSpatialProviding)?,
         capabilities: DeviceCapabilities,
         configuration: DetectorConfiguration,
         isSimulated: Bool,
         clock: any MonotonicClock = SystemMonotonicClock()
     ) {
         self.fieldService = fieldService
-        self.spatialProvider = spatialProvider
+        self.supportsAR = supportsAR
+        self.spatialProviderFactory = spatialProviderFactory
         self.capabilities = capabilities
         self.configuration = configuration
         self.isSimulated = isSimulated
@@ -246,12 +259,16 @@ final class DiagnosticsModel {
     // MARK: - AR
 
     func setARActive(_ active: Bool) {
-        guard let spatialProvider else { return }
         if active {
-            spatialProvider.start()
+            // Built here, on the switch, rather than when the screen appeared.
+            guard supportsAR else { return }
+            let provider = spatialProvider ?? spatialProviderFactory()
+            guard let provider else { return }
+            spatialProvider = provider
+            provider.start()
             isARActive = true
         } else {
-            spatialProvider.stop()
+            spatialProvider?.stop()
             isARActive = false
         }
     }

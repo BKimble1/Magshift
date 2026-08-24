@@ -18,6 +18,11 @@ struct WallFieldApp: App {
                 .tint(Palette.accent)
         }
         .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .active {
+                // Camera access may have been changed in Settings while the app
+                // was in the background, in either direction.
+                appEnvironment.refreshCapabilities()
+            }
             if newPhase != .active {
                 // Anything holding hardware open is told to stand down. The scan
                 // screen owns its own coordinator and handles this too; this is

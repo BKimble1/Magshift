@@ -51,9 +51,29 @@ final class ARSessionController: ARSpatialProviding {
 
     // MARK: - AR objects
 
-    /// The view handed to SwiftUI. Created eagerly so the controller can
-    /// configure the scene before the view is ever presented.
-    let arView: ARView
+    /// Not observable: the AR view is a rendering surface, not state a view
+    /// should redraw for, and building it lazily would otherwise count as a
+    /// mutation during a SwiftUI update.
+    @ObservationIgnored private var storedARView: ARView?
+
+    /// The view handed to SwiftUI.
+    ///
+    /// Built on first use rather than in `init`. Constructing an `ARView` starts
+    /// RealityKit's renderer and creates an `ARSession`, which is real work on a
+    /// real device -- and on the Simulator there is no AR at all, so it is work
+    /// that has never run outside a device. Doing it in `init` meant the moment a
+    /// screen that *might* use AR appeared was the moment the whole AR stack came
+    /// up: while the user was still reading the preparation checklist, or on the
+    /// diagnostics screen where the AR toggle may never be switched on. Now
+    /// nothing is built until something actually asks for the view or starts a
+    /// session, which is what the rest of this app already promised.
+    var arView: ARView {
+        if let storedARView { return storedARView }
+        let view = ARView(frame: .zero, cameraMode: .ar, automaticallyConfigureSession: false)
+        configureRenderOptions(on: view)
+        storedARView = view
+        return view
+    }
 
     private let configuration: DetectorConfiguration
     private let clock: any MonotonicClock
@@ -80,40 +100,43 @@ final class ARSessionController: ARSpatialProviding {
     ) {
         self.configuration = configuration.sanitized()
         self.clock = clock
-        self.arView = ARView(frame: .zero, cameraMode: .ar, automaticallyConfigureSession: false)
-        configureRenderOptions()
     }
 
-    private func configureRenderOptions() {
+    private func configureRenderOptions(on view: ARView) {
         // Restrained rendering: none of these effects help read a heat map, and
         // all of them cost power and generate heat during a long scan.
-        arView.renderOptions = [
+        view.renderOptions = [
             .disableMotionBlur,
             .disableDepthOfField,
             .disableHDR,
             .disableCameraGrain,
             .disableGroundingShadows,
         ]
-        arView.debugOptions = []
+        view.debugOptions = []
     }
 
     // MARK: - Lifecycle
 
-    func start() {
+    /// The reason a session must not be started, or `nil` if it may be.
+    ///
+    /// Read live rather than from the capabilities captured at launch: camera
+    /// access can be granted, or revoked, while the app is running.
+    private static func blockingProblem() -> ARSessionProblem? {
         guard ARWorldTrackingConfiguration.isSupported else {
-            problem = .unsupportedDevice
             Log.ar.error("ARWorldTrackingConfiguration is not supported on this device.")
-            return
+            return .unsupportedDevice
         }
         switch DeviceCapabilities.readCameraAuthorization() {
-        case .denied:
-            problem = .cameraAccessDenied
+        case .denied: return .cameraAccessDenied
+        case .restricted: return .cameraAccessRestricted
+        case .authorized, .notDetermined: return nil
+        }
+    }
+
+    func start() {
+        if let blocker = Self.blockingProblem() {
+            problem = blocker
             return
-        case .restricted:
-            problem = .cameraAccessRestricted
-            return
-        case .authorized, .notDetermined:
-            break
         }
 
         problem = nil
@@ -125,14 +148,22 @@ final class ARSessionController: ARSpatialProviding {
     }
 
     func pause() {
-        guard isRunning else { return }
-        arView.session.pause()
+        guard isRunning, let storedARView else { return }
+        storedARView.session.pause()
         isRunning = false
         Log.ar.debug("AR session paused.")
     }
 
     func resume() {
         guard !isRunning, problem == nil || problem?.isRecoverable == true else { return }
+        // The same guards as `start`. `resume` is reachable from the blocked
+        // screen's Try again button, so it cannot assume a session ever ran, nor
+        // that the reason it stopped has gone away.
+        if let blocker = Self.blockingProblem() {
+            problem = blocker
+            return
+        }
+
         problem = nil
         attachDelegateIfNeeded()
         subscribeToSceneUpdatesIfNeeded()
@@ -159,8 +190,10 @@ final class ARSessionController: ARSpatialProviding {
     }
 
     func stop() {
-        arView.session.pause()
-        arView.session.delegate = nil
+        // Deliberately `storedARView`, not `arView`: stopping something that was
+        // never started must not be the thing that builds an AR view.
+        storedARView?.session.pause()
+        storedARView?.session.delegate = nil
         eventTask?.cancel()
         eventTask = nil
         updateSubscription?.cancel()
@@ -209,7 +242,18 @@ final class ARSessionController: ARSpatialProviding {
         // rendered frame. `assumeIsolated` states that fact to the compiler
         // rather than hopping through a task, which would decouple pose sampling
         // from the frame it belongs to and add avoidable timing error.
+        //
+        // It states it as a *fact*, though, and `assumeIsolated` traps when the
+        // fact does not hold -- which would take the whole app down mid-scan on
+        // the strength of an undocumented threading guarantee. The thread is
+        // therefore checked first, and a callback arriving anywhere else drops
+        // one pose sample instead. At 60 Hz against a 100 ms matching tolerance,
+        // a dropped sample costs nothing measurable.
         updateSubscription = arView.scene.subscribe(to: SceneEvents.Update.self) { [weak self] _ in
+            guard Thread.isMainThread else {
+                Log.ar.error("Scene update arrived off the main thread; pose sample dropped.")
+                return
+            }
             MainActor.assumeIsolated {
                 self?.sampleFrame()
             }
@@ -484,7 +528,7 @@ final class ARSessionController: ARSpatialProviding {
         wallModels[id]?.removeFromParent()
         wallModels[id] = nil
         if let anchor = wallAnchors[id] {
-            arView.scene.removeAnchor(anchor)
+            storedARView?.scene.removeAnchor(anchor)
         }
         wallAnchors[id] = nil
     }

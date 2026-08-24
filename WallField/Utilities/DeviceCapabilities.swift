@@ -65,10 +65,25 @@ struct DeviceCapabilities: Sendable, Equatable {
         }
     }
 
-    // Camera access is never requested explicitly. ARKit presents the system
-    // prompt when the session runs, which is the moment the reason for it is
-    // visible on screen; asking earlier would prompt while the user is still
-    // reading the preparation checklist.
+    /// Asks for camera access and reports what the user decided.
+    ///
+    /// Returns immediately with the current status when the decision has already
+    /// been made -- `requestAccess` never re-prompts, and a caller that treated
+    /// its `false` as "just denied" would misreport a restriction.
+    ///
+    /// Access is requested in exactly one place: the first-run screen, beside the
+    /// sentence explaining why it is needed. ARKit would otherwise raise the
+    /// prompt itself when a session starts, which puts a system alert in front of
+    /// a user who has just tapped Start scanning and is holding the phone at a
+    /// wall. Asking once, up front, on a screen that is standing still, is both
+    /// clearer and less likely to be refused by reflex.
+    static func requestCameraAccess() async -> CameraAuthorization {
+        guard AVCaptureDevice.authorizationStatus(for: .video) == .notDetermined else {
+            return readCameraAuthorization()
+        }
+        _ = await AVCaptureDevice.requestAccess(for: .video)
+        return readCameraAuthorization()
+    }
 }
 
 /// Non-identifying device and OS metadata stored with a scan so results can be

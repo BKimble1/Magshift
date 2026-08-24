@@ -13,7 +13,20 @@ import SwiftUI
 final class AppEnvironment {
 
     let runtimeMode: RuntimeMode
-    let capabilities: DeviceCapabilities
+
+    /// What this device and this install can do.
+    ///
+    /// Not a `let`: camera authorization is a decision the user makes, and they
+    /// can make it -- or reverse it in Settings -- long after launch. Reading it
+    /// once and keeping it meant granting access on the first-run screen had no
+    /// effect until the app was relaunched, because everything downstream still
+    /// saw `notDetermined`.
+    private(set) var capabilities: DeviceCapabilities
+
+    /// True when `capabilities` was read from this device rather than injected by
+    /// a test or a preview, which is the only case where refreshing them is right.
+    private let capabilitiesAreLive: Bool
+
     let preferences: AppPreferences
     let scanStore: any ScanStoring
     let feedback = FeedbackController()
@@ -40,12 +53,17 @@ final class AppEnvironment {
         scanStore: (any ScanStoring)? = nil
     ) {
         self.runtimeMode = runtimeMode
-        var resolvedCapabilities = capabilities
+        // Only capabilities this environment read for itself may be re-read
+        // later. An injected set belongs to a test or a preview, and refreshing
+        // it would replace the thing the test is holding fixed.
+        let injectedCapabilities = capabilities
+        var resolvedCapabilities = injectedCapabilities
             ?? (runtimeMode.isSimulated ? .simulated() : .current())
         if RuntimeMode.shouldSimulateCameraDenied() {
             resolvedCapabilities.cameraAuthorization = .denied
         }
         self.capabilities = resolvedCapabilities
+        self.capabilitiesAreLive = injectedCapabilities == nil && !runtimeMode.isSimulated
         self.simulatedEnvironment = runtimeMode.isSimulated ? SimulatedEnvironment() : nil
 
         let resolvedPreferences = preferences ?? AppPreferences()
@@ -90,6 +108,22 @@ final class AppEnvironment {
         guard RuntimeMode.shouldResetPersistentState() else { return nil }
         return FileManager.default.temporaryDirectory
             .appendingPathComponent("WallFieldUITests", isDirectory: true)
+    }
+
+    /// Re-reads the capabilities that can change while the app is running.
+    ///
+    /// Called when the app becomes active and after the first-run screen asks for
+    /// camera access. Cheap enough to call on every activation: it is two
+    /// framework queries and an assignment that only happens on a real change,
+    /// which matters because `@Observable` invalidates observers on every write.
+    func refreshCapabilities() {
+        guard capabilitiesAreLive else { return }
+        var refreshed = DeviceCapabilities.current()
+        if RuntimeMode.shouldSimulateCameraDenied() {
+            refreshed.cameraAuthorization = .denied
+        }
+        guard refreshed != capabilities else { return }
+        capabilities = refreshed
     }
 
     // MARK: - Factories
