@@ -621,11 +621,18 @@ final class ARSessionController: ARSpatialProviding {
             entity = created
         }
         MarkerEntityFactory.populate(entity, cluster: cluster, normalSign: wall.normalSign)
-        entity.position = SIMD3<Float>(
+        let position = SIMD3<Float>(
             cluster.anchorLocalPosition.x,
             cluster.anchorLocalPosition.y,
             cluster.anchorLocalPosition.z
         )
+        // Same rule as the wall mesh: nothing non-finite reaches the renderer.
+        guard position.x.isFinite, position.y.isFinite, position.z.isFinite else {
+            Log.ar.error("Refused to place a marker at a non-finite position.")
+            removeClusterMarker(id: cluster.id)
+            return
+        }
+        entity.position = position
     }
 
     func removeClusterMarker(id: UUID) {

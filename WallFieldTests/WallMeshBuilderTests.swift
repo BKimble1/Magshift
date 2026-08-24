@@ -133,3 +133,38 @@ final class WallMeshBuilderTests: XCTestCase {
         )
     }
 }
+
+/// The marker geometry, which has the same property as the wall mesh: it is
+/// built only for real clusters on a real locked wall, so it had never run
+/// anywhere either.
+final class MarkerGeometryTests: XCTestCase {
+
+    func testANonFiniteScoreCannotProduceANonFiniteRadius() {
+        // Swift's `min` and `max` propagate NaN rather than clamping it, so
+        // `min(max(nan, 0), 1)` is nan, not 0. A mesh generated at that size is
+        // handed to the renderer as garbage.
+        XCTAssertTrue(MarkerEntityFactory.radius(forScore: Float.nan).isFinite)
+        XCTAssertTrue(MarkerEntityFactory.radius(forScore: Float.infinity).isFinite)
+        XCTAssertTrue(MarkerEntityFactory.radius(forScore: -Float.infinity).isFinite)
+    }
+
+    func testEveryRadiusIsBigEnoughToDraw() {
+        for score in [Float(-5), 0, 0.5, 1, 5, .nan] {
+            let radius = MarkerEntityFactory.radius(forScore: score)
+            XCTAssertGreaterThan(radius, 0, "score \(score) produced a radius of \(radius)")
+        }
+    }
+
+    func testTheRadiusGrowsWithTheScoreAndThenStops() {
+        XCTAssertEqual(MarkerEntityFactory.radius(forScore: Float(0)), MarkerEntityFactory.minimumRadius)
+        XCTAssertGreaterThan(
+            MarkerEntityFactory.radius(forScore: Float(0.5)),
+            MarkerEntityFactory.radius(forScore: Float(0))
+        )
+        // Clamped, so an extreme reading cannot draw a marker the size of a wall.
+        XCTAssertEqual(
+            MarkerEntityFactory.radius(forScore: Float(5)),
+            MarkerEntityFactory.radius(forScore: Float(1))
+        )
+    }
+}

@@ -82,7 +82,12 @@ enum MarkerEntityFactory {
     }
 
     static func radius(forScore score: Float) -> Float {
-        minimumRadius + radiusRange * min(max(score, 0), 1)
+        // A non-finite score would make the radius non-finite, and a mesh
+        // generated at a non-finite size is handed to the renderer as garbage.
+        // Swift's `min`/`max` propagate NaN rather than clamping it away, so the
+        // check has to be explicit.
+        guard score.isFinite else { return minimumRadius }
+        return minimumRadius + radiusRange * min(max(score, 0), 1)
     }
 
     static func radius(forScore score: Double) -> Float {
