@@ -20,23 +20,35 @@ struct DiagnosticsView: View {
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
             if model == nil {
+                // Entered here rather than around the construction alone: a
+                // crash while this screen renders must leave a note too.
+                HardwarePhaseRecorder.enter(.openingDiagnostics)
                 let environment = app
-                model = HardwarePhaseRecorder.attempting(.preparingDiagnostics) {
-                    DiagnosticsModel(
-                        fieldService: environment.makeFieldService(),
-                        supportsAR: environment.capabilities.supportsWorldTracking,
-                        spatialProviderFactory: { environment.makeSpatialProvider() },
-                        capabilities: environment.capabilities,
-                        configuration: environment.preferences.detectorConfiguration,
-                        isSimulated: environment.runtimeMode.isSimulated
-                    )
-                }
+                model = DiagnosticsModel(
+                    fieldService: environment.makeFieldService(),
+                    supportsAR: environment.capabilities.supportsWorldTracking,
+                    spatialProviderFactory: { environment.makeSpatialProvider() },
+                    capabilities: environment.capabilities,
+                    configuration: environment.preferences.detectorConfiguration,
+                    isSimulated: environment.runtimeMode.isSimulated
+                )
             }
             model?.start()
+            HardwarePhaseRecorder.enter(.onDiagnosticsScreen)
         }
-        .onDisappear { model?.stop() }
+        .onDisappear {
+            model?.stop()
+            HardwarePhaseRecorder.leave()
+        }
         .onChange(of: scenePhase) { _, phase in
-            if phase != .active { model?.stop() }
+            if phase == .active {
+                if model != nil { HardwarePhaseRecorder.enter(.onDiagnosticsScreen) }
+            } else {
+                model?.stop()
+                // Leaving under the app's own power erases the note, so being
+                // closed from the app switcher is never reported as a crash.
+                HardwarePhaseRecorder.leave()
+            }
         }
         .sheet(isPresented: Binding(
             get: { exporter.isPresentingShareSheet },
@@ -296,10 +308,14 @@ struct DiagnosticsView: View {
                         // the centre of this view, so the distance readout is only
                         // meaningful while it is on screen and laid out.
                         if let controller = model.arSessionController {
-                            ZStack {
+                            // Type-erased for the reason given in ScanFlowView:
+                            // this screen's job is the magnetometer, and naming
+                            // `ARViewContainer` in its type makes RealityKit part
+                            // of simply opening it.
+                            AnyView(ZStack {
                                 ARViewContainer(controller: controller, showsCoaching: false)
                                 Crosshair(isActive: model.raycastDistance != nil)
-                            }
+                            })
                             .frame(height: 200)
                             .clipShape(RoundedRectangle(
                                 cornerRadius: Theme.Radius.small, style: .continuous

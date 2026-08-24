@@ -23,17 +23,25 @@ struct ScanFlowView: View {
         }
         .onAppear {
             if coordinator == nil {
-                coordinator = HardwarePhaseRecorder.attempting(.preparingScan) {
-                    app.makeScanCoordinator()
-                }
+                // Entered here rather than around the construction alone: a
+                // crash while this screen renders must leave a note too.
+                HardwarePhaseRecorder.enter(.openingScanScreen)
+                coordinator = app.makeScanCoordinator()
             }
+            HardwarePhaseRecorder.enter(.onScanScreen)
         }
         .onDisappear {
             coordinator?.teardown()
+            HardwarePhaseRecorder.leave()
         }
         .onChange(of: scenePhase) { _, newPhase in
-            if newPhase != .active {
+            if newPhase == .active {
+                if coordinator != nil { HardwarePhaseRecorder.enter(.onScanScreen) }
+            } else {
                 coordinator?.handleBackgrounding()
+                // Leaving under the app's own power erases the note, so being
+                // closed from the app switcher is never reported as a crash.
+                HardwarePhaseRecorder.leave()
             }
         }
     }
@@ -144,9 +152,19 @@ private struct ScanFlowContent: View {
             Color.black
         case .mappingWall, .wallLocked, .calibrating, .scanning, .paused:
             if let controller = coordinator.arSessionController {
-                ARViewContainer(
-                    controller: controller,
-                    showsCoaching: coordinator.phase == .mappingWall
+                // Type-erased so `ARViewContainer` -- and through it `ARView`,
+                // and through that the whole of RealityKit -- is not part of
+                // this view's type. Without the erasure, SwiftUI realises it as
+                // soon as the scan screen renders, which is while the user is
+                // still reading the checklist and no camera is running. Erased,
+                // RealityKit is first touched when a session is actually on
+                // screen, which is the only point at which this app has any
+                // business loading it.
+                AnyView(
+                    ARViewContainer(
+                        controller: controller,
+                        showsCoaching: coordinator.phase == .mappingWall
+                    )
                 )
             } else if let environment = coordinator.simulatedEnvironment {
                 SimulatedWallCanvas(

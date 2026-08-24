@@ -90,6 +90,9 @@ struct HomeView: View {
 
     private var newScanButton: some View {
         Button {
+            // Before the cover is presented, not after: if presenting the scan
+            // screen is itself what fails, nothing inside it will have run.
+            HardwarePhaseRecorder.enter(.openingScanScreen)
             isPresentingScan = true
         } label: {
             Label("New wall scan", systemImage: "viewfinder")

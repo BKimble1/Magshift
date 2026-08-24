@@ -178,9 +178,8 @@ final class DiagnosticsModel {
     func start() {
         guard !isStreaming else { return }
         startTimestamp = clock.now
-        let stream = HardwarePhaseRecorder.attempting(.startingMagnetometer) {
-            fieldService.start(preferredSampleRate: 50)
-        }
+        HardwarePhaseRecorder.enter(.startingMagnetometer)
+        let stream = fieldService.start(preferredSampleRate: 50)
         isStreaming = true
         sampleTask = Task { @MainActor [weak self] in
             for await sample in stream {
@@ -264,7 +263,7 @@ final class DiagnosticsModel {
         if active {
             // Built here, on the switch, rather than when the screen appeared.
             guard supportsAR else { return }
-            HardwarePhaseRecorder.attempting(.startingCamera) {
+            HardwarePhaseRecorder.during(.startingCamera) {
                 let provider = spatialProvider ?? spatialProviderFactory()
                 guard let provider else { return }
                 spatialProvider = provider

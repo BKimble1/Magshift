@@ -1,35 +1,55 @@
 import XCTest
 @testable import WallField
 
-/// The note the app leaves before touching hardware the Simulator does not have.
+/// The note the app keeps while it is on a screen that drives hardware the
+/// Simulator does not have.
 ///
 /// What cannot be tested here is the case the mechanism exists for: a note
 /// surviving an actual crash. A test process that crashes fails the suite rather
 /// than reporting anything, so the crash is staged as far as it can be -- a note
-/// is written and then read back as a later launch would read it -- and the rest
-/// of these tests pin the property that makes it trustworthy, which is that
-/// *nothing except a crash* leaves one behind.
+/// is left and then read back the way a later launch reads it -- and the rest of
+/// these tests pin the property that makes it trustworthy, which is that leaving
+/// a screen under the app's own power always erases the note.
 @MainActor
 final class HardwarePhaseRecorderTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        HardwarePhaseRecorder.erase()
+        HardwarePhaseRecorder.leave()
     }
 
     override func tearDown() {
-        HardwarePhaseRecorder.erase()
+        HardwarePhaseRecorder.leave()
         super.tearDown()
     }
 
     func testANoteSurvivesToBeReadBackLikeALaterLaunchWouldReadIt() {
-        HardwarePhaseRecorder.recordUnfinished(.startingCamera)
+        HardwarePhaseRecorder.enter(.onDiagnosticsScreen)
 
+        // No `leave`: this is what being killed on that screen looks like.
+        XCTAssertEqual(HardwarePhaseRecorder.takeUnfinishedPhase(), .onDiagnosticsScreen)
+    }
+
+    func testTheNoteFollowsTheAppFromScreenToHardware() {
+        HardwarePhaseRecorder.enter(.onScanScreen)
+        HardwarePhaseRecorder.enter(.startingCamera)
+
+        // The narrower phase wins, because it is the more useful thing to be
+        // told when that is where the app stopped.
         XCTAssertEqual(HardwarePhaseRecorder.takeUnfinishedPhase(), .startingCamera)
     }
 
+    func testLeavingAScreenErasesTheNote() {
+        HardwarePhaseRecorder.enter(.onScanScreen)
+        HardwarePhaseRecorder.leave()
+
+        // Closing the app from the app switcher goes through `leave`, so a
+        // deliberate exit is never reported at the next launch as a crash.
+        XCTAssertNil(HardwarePhaseRecorder.takeUnfinishedPhase())
+    }
+
     func testReadingTheNoteConsumesIt() {
-        HardwarePhaseRecorder.recordUnfinished(.startingMagnetometer)
+        HardwarePhaseRecorder.enter(.startingMagnetometer)
 
         XCTAssertNotNil(HardwarePhaseRecorder.takeUnfinishedPhase())
         // One crash is reported once. A note that survived being read would put
@@ -37,26 +57,35 @@ final class HardwarePhaseRecorderTests: XCTestCase {
         XCTAssertNil(HardwarePhaseRecorder.takeUnfinishedPhase())
     }
 
-    func testWorkThatReturnsLeavesNothingBehind() {
-        let result = HardwarePhaseRecorder.attempting(.preparingScan) { 42 }
+    func testDuringRestoresThePhaseItInterrupted() {
+        HardwarePhaseRecorder.enter(.onDiagnosticsScreen)
+
+        let result = HardwarePhaseRecorder.during(.startingCamera) { 42 }
 
         XCTAssertEqual(result, 42)
-        XCTAssertNil(HardwarePhaseRecorder.takeUnfinishedPhase())
+        // Back on the screen, not back to nothing: the app is still there.
+        XCTAssertEqual(HardwarePhaseRecorder.takeUnfinishedPhase(), .onDiagnosticsScreen)
     }
 
-    func testWorkThatThrowsLeavesNothingBehind() {
+    func testDuringRestoresThePhaseEvenWhenTheWorkThrows() {
         struct Failure: Error {}
+        HardwarePhaseRecorder.enter(.onDiagnosticsScreen)
 
         // The return type is stated because nothing else can supply it: both
-        // `attempting` and `XCTAssertThrowsError` are generic, and a closure body
+        // `during` and `XCTAssertThrowsError` are generic, and a closure body
         // that only throws gives the compiler nothing to infer from.
         XCTAssertThrowsError(
-            try HardwarePhaseRecorder.attempting(.preparingDiagnostics) { () -> Int in
-                throw Failure()
-            }
+            try HardwarePhaseRecorder.during(.startingCamera) { () -> Int in throw Failure() }
         )
+
         // A thrown error is a failure the app handles and reports itself, so it
-        // must not also be reported as a crash at the next launch.
+        // must not leave the app looking as though it died in that call.
+        XCTAssertEqual(HardwarePhaseRecorder.takeUnfinishedPhase(), .onDiagnosticsScreen)
+    }
+
+    func testDuringWithNoScreenBehindItLeavesNothing() {
+        HardwarePhaseRecorder.during(.startingMagnetometer) {}
+
         XCTAssertNil(HardwarePhaseRecorder.takeUnfinishedPhase())
     }
 
@@ -64,9 +93,9 @@ final class HardwarePhaseRecorderTests: XCTestCase {
         XCTAssertNil(HardwarePhaseRecorder.takeUnfinishedPhase())
     }
 
-    func testEraseIsSafeWhenThereIsNoNote() {
-        HardwarePhaseRecorder.erase()
-        HardwarePhaseRecorder.erase()
+    func testLeavingIsSafeWhenThereIsNoNote() {
+        HardwarePhaseRecorder.leave()
+        HardwarePhaseRecorder.leave()
         XCTAssertNil(HardwarePhaseRecorder.takeUnfinishedPhase())
     }
 
