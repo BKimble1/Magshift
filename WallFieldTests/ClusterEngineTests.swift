@@ -111,8 +111,8 @@ final class ClusterEngineTests: XCTestCase {
     func testBestSpatialQualityAndWorstTimingErrorAreKept() {
         var engine = engine()
         add(&engine, at: WallPoint(x: 0, y: 0), quality: .extrapolatedPlane, timingError: 0.01)
-        add(&engine, at: WallPoint(x: 0.01, y: 0), quality: .planeGeometry, timingError: 0.06,
-            timestamp: Fixture.baseTimestamp + 0.5)
+        add(&engine, at: WallPoint(x: 0.01, y: 0), timestamp: Fixture.baseTimestamp + 0.5,
+            quality: .planeGeometry, timingError: 0.06)
         XCTAssertEqual(engine.clusters[0].bestRaycastQuality, .planeGeometry)
         XCTAssertEqual(engine.clusters[0].worstTimingError, 0.06, accuracy: 1e-9)
     }
