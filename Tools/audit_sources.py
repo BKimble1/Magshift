@@ -14,7 +14,9 @@ reviewer would have to remember:
 * every source file has a documentation comment before its first type;
 * the app target does not import XCTest;
 * nothing in the app is declared and never used;
-* braces, parentheses and brackets balance in every file.
+* braces, parentheses and brackets balance in every file;
+* no class or actor stores a property whose default value references `Self`,
+  which Swift rejects as a covariant-`Self` reference.
 
 Run: ``python3 Tools/audit_sources.py``
 """
@@ -61,6 +63,71 @@ APP_ONLY_PATTERNS = [
 ]
 
 MARKER_PATTERN = re.compile(r"\b(TODO|FIXME|XXX|HACK|PLACEHOLDER|placeholder)\b")
+
+# A stored property with a default value, as opposed to a computed property
+# (which has `{` where this has `=`) or a local variable inside a function body.
+STORED_PROPERTY_RE = re.compile(
+    r"^\s*(?:@\w+(?:\([^)]*\))?\s+)*"
+    r"(?:(?:private\(set\)|public|internal|private|fileprivate|final|lazy"
+    r"|nonisolated\(unsafe\)|nonisolated|weak|unowned)\s+)*"
+    r"(?:var|let)\s+\w+\s*(?::[^=]+?)?=\s*(?P<value>.+)$"
+)
+
+TYPE_DECLARATION_RE = re.compile(r"\b(class|actor|struct|enum|extension|protocol)\s+\w+")
+
+
+def mask_non_code(source: str, spans: list) -> str:
+    """The source with comments and string literals blanked out.
+
+    Line and column positions are preserved, so a regex can be run over real
+    code without a brace inside a string or a keyword inside a comment being
+    mistaken for the real thing.
+    """
+    pieces = []
+    for span in spans:
+        if span.kind == "code":
+            pieces.append(span.text)
+        else:
+            pieces.append("".join("\n" if ch == "\n" else " " for ch in span.text))
+    return "".join(pieces)
+
+
+def covariant_self_in_stored_property(masked: str) -> list[tuple[int, str]]:
+    """Stored properties of a class or actor whose default value mentions `Self`.
+
+    Swift rejects `Self` in a stored property initializer inside a class -- even
+    a final one -- with "covariant 'Self' type cannot be referenced from a stored
+    property initializer". It is legal in a struct or an enum, and legal anywhere
+    inside a function body, so this tracks which kind of declaration opened the
+    brace the property sits directly inside.
+    """
+    findings: list[tuple[int, str]] = []
+    # Stack of the declaration keyword that opened each open brace, or None for a
+    # brace that opened something else (a function body, a closure, an if).
+    stack: list[str | None] = []
+
+    for number, line in enumerate(masked.splitlines(), start=1):
+        directly_inside = stack[-1] if stack else None
+
+        if directly_inside in ("class", "actor"):
+            match = STORED_PROPERTY_RE.match(line)
+            if match and re.search(r"(?<![\w.])Self\s*\.", match.group("value")):
+                findings.append((number, line.strip()))
+
+        # Update the stack for braces opened or closed on this line. A line may
+        # both open and close braces, so they are processed in order.
+        opener: str | None = None
+        declaration = TYPE_DECLARATION_RE.search(line)
+        if declaration and "{" in line and declaration.start() < line.index("{"):
+            opener = declaration.group(1)
+        for character in line:
+            if character == "{":
+                stack.append(opener)
+                opener = None
+            elif character == "}" and stack:
+                stack.pop()
+
+    return findings
 
 DECLARATION_RE = re.compile(
     r"^\s*(?:@\w+(?:\([^)]*\))?\s+)*"
@@ -186,8 +253,92 @@ def audit(path: str, is_test: bool) -> None:
         unbalanced = f"'{opener}' opened at line {opened_at} is never closed"
     check(unbalanced is None, f"{relative}: unbalanced delimiters -- {unbalanced}")
 
+    # Swift rejects `Self` in a stored property initializer inside a class.
+    masked = mask_non_code(source, spans)
+    for line_number, text in covariant_self_in_stored_property(masked):
+        check(False,
+              f"{relative}:{line_number}: a class stores a property whose default value "
+              f"references Self, which Swift rejects -- name the type instead: {text}")
+
+
+SELF_TEST_CASES: list[tuple[str, str, list[int]]] = [
+    ("class stored property with Self is rejected", """
+final class A {
+    static let x = 1.0
+    private(set) var v: Double = Self.x
+}
+""", [4]),
+    ("actor stored property with Self is rejected", """
+actor B {
+    static let x = 1
+    var v = Self.x
+}
+""", [4]),
+    ("struct stored property with Self is legal", """
+struct C {
+    static let x = 1
+    var v = Self.x
+}
+""", []),
+    ("enum computed property with Self is legal", """
+enum D {
+    static let m = 2
+    var ok: Bool { self >= Self.m }
+}
+""", []),
+    ("local variable inside a class method is legal", """
+final class E {
+    static let s = 1.0
+    func go() {
+        let v = Self.s * 2
+        _ = v
+    }
+}
+""", []),
+    ("Self inside a comment or a string is not code", """
+final class F {
+    // var v = Self.x
+    let note = "Self.x"
+}
+""", []),
+    ("nested struct inside a class is legal", """
+final class G {
+    struct Inner {
+        static let x = 1
+        var v = Self.x
+    }
+}
+""", []),
+    ("computed property on a class is legal", """
+final class H {
+    static let x = 1
+    var v: Int { Self.x }
+}
+""", []),
+]
+
+
+def self_test() -> int:
+    """Checks the covariant-`Self` detector against known-good and known-bad code.
+
+    The negative cases matter as much as the positive one: a check that fires on
+    legal struct and enum code would be turned off within a week.
+    """
+    failures = 0
+    for description, source, expected in SELF_TEST_CASES:
+        spans = swiftsource.scan(source)
+        found = [line for line, _ in covariant_self_in_stored_property(mask_non_code(source, spans))]
+        if found != expected:
+            print(f"  FAIL {description}: found lines {found}, expected {expected}")
+            failures += 1
+    print(f"audit_sources.py: {len(SELF_TEST_CASES)} self-test cases, {failures} failure(s)")
+    return 1 if failures else 0
+
 
 def main() -> int:
+    if "--self-test" in sys.argv:
+        return self_test()
+
     check(len(APP_SOURCES) > 0, "no Swift sources found in WallField/")
     for path in APP_SOURCES:
         audit(path, is_test=False)

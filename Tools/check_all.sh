@@ -11,6 +11,7 @@ cd "$(dirname "$0")/.."
 
 python3 Tools/validate_project.py
 python3 Tools/audit_sources.py
+python3 Tools/audit_sources.py --self-test
 python3 Tools/check_symbols.py
 python3 Tools/lint_claims.py
 python3 Tools/verify_algorithm.py

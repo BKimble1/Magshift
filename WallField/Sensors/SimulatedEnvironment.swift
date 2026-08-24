@@ -98,7 +98,14 @@ final class SimulatedEnvironment {
     // MARK: - Live state
 
     /// Where the crosshair currently sits on the synthetic wall.
-    private(set) var crosshair: WallPoint = WallPoint(x: -Self.sweepHalfWidth, y: Self.sweepRow)
+    ///
+    /// The type is named rather than written as `Self`: Swift rejects a
+    /// covariant `Self` in a stored property's initializer inside a class, even
+    /// a final one.
+    private(set) var crosshair = WallPoint(
+        x: -SimulatedEnvironment.sweepHalfWidth,
+        y: SimulatedEnvironment.sweepRow
+    )
     private(set) var motionState: MotionState = .still
     /// Current crosshair speed, m/s.
     private(set) var speed: Double = 0
