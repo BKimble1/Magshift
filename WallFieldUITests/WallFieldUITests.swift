@@ -233,11 +233,16 @@ final class WallFieldUITests: XCTestCase {
                       "undo did not remove a mark")
 
         app.buttons[A11yID.reset].tap()
-        let confirmReset = app.buttons["Remove all marks"]
+        // `.firstMatch` for the same reason the delete confirmation uses it: a
+        // confirmation dialog's button matches more than one element, and `tap()`
+        // requires a single one. `waitForExistence` does not, which is why this
+        // surfaced at the tap rather than the wait.
+        let confirmReset = app.buttons["Remove all marks"].firstMatch
         XCTAssertTrue(confirmReset.waitForExistence(timeout: 5),
                       "removing every mark must ask first")
         confirmReset.tap()
-        XCTAssertTrue(waitUntil(timeout: 5) { markCount(clusterCount) == 0 })
+        XCTAssertTrue(waitUntil(timeout: 5) { markCount(clusterCount) == 0 },
+                      "confirming the reset did not clear the marks")
     }
 
     func testSafetyInformationIsReachableWhileScanning() {
