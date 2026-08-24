@@ -163,9 +163,12 @@ struct ScanDetailView: View {
                     }
                     .buttonStyle(SecondaryButtonStyle())
                     .disabled(exporter.isPreparing)
+                    // On the control, not on the padding and material around it,
+                    // which is a container rather than a button. Review's copy of
+                    // this button does the same and is found; this one was not.
+                    .accessibilityIdentifier(A11y.reviewExport)
                     .padding(Theme.Spacing.medium)
                     .background(.bar)
-                    .accessibilityIdentifier(A11y.reviewExport)
                 }
                 .navigationTitle(record.displayName)
             } else {
