@@ -51,8 +51,9 @@ Two shared schemes:
 * **WallField** — the normal app. Run it on a physical iPhone.
 * **WallField (Simulated Data)** — runs the whole app against a deterministic
   synthetic wall and sensor, so the entire flow works in the Simulator. Every
-  screen it drives is labelled *Simulated data*, and it is compiled out of
-  Release builds entirely.
+  screen it drives is labelled *Simulated data*, and a Release build has no path
+  into it: `RuntimeMode.resolve()` returns `.live` unconditionally under
+  `#if !DEBUG`, so nothing in a shipped build can select it.
 
 ### Signing
 

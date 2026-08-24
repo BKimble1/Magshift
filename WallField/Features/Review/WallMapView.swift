@@ -156,7 +156,12 @@ struct WallMapLayout {
     }
 
     func wallPoint(for point: CGPoint) -> WallPoint {
-        WallPoint(
+        // `scale` is zero before the first layout pass gives the view a size.
+        // Dividing by it would hand the caller an infinite wall coordinate,
+        // which the simulated canvas would then feed straight into the
+        // environment and the stored geometry.
+        guard scale > 0 else { return bounds.center }
+        return WallPoint(
             x: bounds.minX + (Double(point.x) - originX) / scale,
             y: bounds.maxY - (Double(point.y) - originY) / scale
         )

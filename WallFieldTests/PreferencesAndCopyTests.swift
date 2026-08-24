@@ -343,9 +343,23 @@ final class CapabilityBlockTests: XCTestCase {
             supportsVerticalPlaneDetection: false,
             supportsSceneDepth: false,
             supportsSceneReconstruction: false,
-            cameraAuthorization: .denied
+            cameraAuthorization: .authorized
         )
         XCTAssertNil(CapabilityBlock.evaluate(capabilities, runtimeMode: .simulated))
+    }
+
+    /// Simulated mode bypasses hardware, not permission.
+    ///
+    /// `DeviceCapabilities.simulated()` reports `.authorized`, so a refusal can
+    /// only have been set deliberately -- which is what
+    /// `-WallFieldSimulateCameraDenied` does. `WallFieldUITests`
+    /// `testCameraDeniedIsExplainedWithARouteToSettings` depends on this: it
+    /// runs in simulated mode and expects the recovery card.
+    func testSimulatedModeStillReportsADeliberatelyDeniedCamera() throws {
+        var capabilities = DeviceCapabilities.simulated()
+        capabilities.cameraAuthorization = .denied
+        let block = try XCTUnwrap(CapabilityBlock.evaluate(capabilities, runtimeMode: .simulated))
+        XCTAssertTrue(block.offersSettings)
     }
 
     func testLiveScanRequiresTrackingAndCamera() {

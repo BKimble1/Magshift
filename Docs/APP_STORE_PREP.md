@@ -33,9 +33,13 @@ repository.
 | Build number | `1` | `Config/Shared.xcconfig` |
 | Encryption | `ITSAppUsesNonExemptEncryption = false` | `Config/WallField-Info.plist` |
 
-Release builds compile simulated data out entirely (`RuntimeMode.resolve()`
-returns `.live` unconditionally under `#if !DEBUG`), so there is no path by which
-synthetic readings could reach a reviewer or a user.
+A Release build cannot select simulated data: `RuntimeMode.resolve()` returns
+`.live` unconditionally under `#if !DEBUG`, the Settings toggle that would change
+it is behind `RuntimeMode.developerToolsAvailable` (also `#if DEBUG`), and the
+`-WallFieldDemoMode` launch argument is ignored. There is therefore no path by
+which synthetic readings could reach a reviewer or a user. The synthetic types
+themselves are ordinary Swift and are still compiled; what is removed is every
+way of reaching them.
 
 ## 3. Permissions and capabilities
 
@@ -209,8 +213,9 @@ Paste this into the review notes field:
 > connection. The two permissions requested are camera (for ARKit wall
 > recognition) and motion (for magnetic-field readings).
 >
-> There is no simulated-data mode in this build; it is compiled out of Release
-> builds entirely.
+> The simulated-data mode used for development cannot be selected in this
+> build: the runtime mode resolves to live unconditionally in a Release build,
+> and the developer toggle that would switch it is compiled out.
 
 ## 8. Guideline notes
 

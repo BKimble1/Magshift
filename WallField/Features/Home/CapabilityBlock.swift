@@ -14,11 +14,16 @@ struct CapabilityBlock: Equatable {
         _ capabilities: DeviceCapabilities,
         runtimeMode: RuntimeMode
     ) -> CapabilityBlock? {
-        // Simulated data deliberately bypasses hardware checks: that is the whole
-        // point of it, and every screen it drives is labelled as simulated.
-        if runtimeMode.isSimulated { return nil }
-
-        if !capabilities.supportsWorldTracking {
+        // Simulated data deliberately bypasses the *hardware* checks: that is the
+        // whole point of it, and every screen it drives is labelled as simulated.
+        //
+        // Camera authorization is deliberately not bypassed. It is a permission,
+        // not a capability, and `DeviceCapabilities.simulated()` reports
+        // `.authorized`, so a refusal reaching here in simulated mode can only
+        // have been set on purpose -- which is exactly what
+        // `-WallFieldSimulateCameraDenied` does so the recovery path can be
+        // driven by a UI test.
+        if !runtimeMode.isSimulated, !capabilities.supportsWorldTracking {
             return CapabilityBlock(
                 title: "AR wall mapping is not available",
                 message: """

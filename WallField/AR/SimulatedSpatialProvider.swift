@@ -11,8 +11,9 @@ import simd
 ///
 /// It reports plausible values, never impossible ones: tracking degrades when the
 /// crosshair leaves the synthetic wall, the raycast genuinely misses off the
-/// wall, and speed comes from actual crosshair motion. Nothing here is available
-/// in a Release build.
+/// wall, and speed comes from actual crosshair motion. A Release build can never
+/// reach it: only `AppEnvironment` constructs one, and only when
+/// `RuntimeMode.current` is `.simulated`, which `#if !DEBUG` makes impossible.
 @MainActor
 @Observable
 final class SimulatedSpatialProvider: ARSpatialProviding {
@@ -104,14 +105,22 @@ final class SimulatedSpatialProvider: ARSpatialProviding {
         problem = nil
     }
 
+    /// Stops sampling and returns the provider to its pre-`start` state, so a
+    /// second `start` on the same instance behaves like the first. Mirrors
+    /// `ARSessionController.stop()`.
     func stop() {
         if let tickToken { environment.removeTickObserver(tickToken) }
         tickToken = nil
         environment.stop()
         isRunning = false
+        unlockWall()
+        detectedWalls.removeAll()
+        targetedWallID = nil
+        trackingQuality = .notAvailable
         spatialBuffer.removeAll()
         newestSpatialSample = nil
-        currentHit = nil
+        previousCrosshair = nil
+        previousTimestamp = nil
     }
 
     // MARK: - Locking

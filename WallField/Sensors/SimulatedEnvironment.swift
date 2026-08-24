@@ -43,8 +43,8 @@ struct DeterministicRandom {
 /// clustering, repeat-pass confidence, review, persistence and export all run
 /// their real code paths with no special cases.
 ///
-/// Never available in Release builds -- `RuntimeMode.resolve()` cannot return
-/// `.simulated` there.
+/// Unreachable in a Release build: `RuntimeMode.resolve()` cannot return
+/// `.simulated` there, and `AppEnvironment` builds one only in that mode.
 @MainActor
 @Observable
 final class SimulatedEnvironment {
@@ -260,12 +260,20 @@ final class SimulatedEnvironment {
         return (direction / length) * magnitude
     }
 
+    /// Motion energy for the current state.
+    ///
+    /// The two states must straddle `MotionEnergy.isSteady`, or the simulation
+    /// misrepresents the one thing this value exists to decide: a phone being
+    /// swept across a wall must be refused as a calibration baseline, exactly as
+    /// it is on a device. The sweeping figures are therefore above both limits
+    /// (0.06 g and 0.35 rad/s), which is what a hand-held pass actually
+    /// produces; the still figures are comfortably below them.
     var motionEnergy: MotionEnergy {
         switch motionState {
         case .still:
             return MotionEnergy(userAcceleration: 0.004, rotationRate: 0.01)
         case .sweeping:
-            return MotionEnergy(userAcceleration: 0.03, rotationRate: 0.12)
+            return MotionEnergy(userAcceleration: 0.09, rotationRate: 0.45)
         }
     }
 

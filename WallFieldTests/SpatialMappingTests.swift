@@ -192,12 +192,17 @@ final class SpatialSampleBufferTests: XCTestCase {
     }
 
     func testToleranceBoundaryIsInclusive() throws {
+        // Binary-exact values (1.125 = 9/8, 0.125 = 1/8), so this asserts the
+        // comparison is `<=` rather than asserting something about floating
+        // point. Written with 1.0 and 1.1 it asserts neither: `1.1 - 1.0` is
+        // 0.100000000000000088, which is genuinely outside a 0.1 tolerance.
         var poses = SpatialSampleBuffer(capacity: 10)
         poses.append(Fixture.spatialSample(at: 1.0))
-        XCTAssertNotNil(poses.match(timestamp: 1.1, tolerance: 0.1))
-        XCTAssertNil(poses.match(timestamp: 1.1001, tolerance: 0.1))
-        let match = try XCTUnwrap(poses.match(timestamp: 1.05, tolerance: 0.1))
-        XCTAssertEqual(match.timingError, 0.05, accuracy: 1e-9)
+        XCTAssertNotNil(poses.match(timestamp: 1.125, tolerance: 0.125),
+                        "a pose exactly at the tolerance must still match")
+        XCTAssertNil(poses.match(timestamp: 1.1251, tolerance: 0.125))
+        let match = try XCTUnwrap(poses.match(timestamp: 1.0625, tolerance: 0.125))
+        XCTAssertEqual(match.timingError, 0.0625, accuracy: 1e-12)
     }
 
     func testEmptyBufferMatchesNothing() {

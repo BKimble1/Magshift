@@ -32,8 +32,13 @@ struct LiveReadout: Sendable, Equatable {
     /// construction, because `meterLevel` normalises against twice the threshold.
     var thresholdFraction: Double { 0.5 }
 
-    var band: AnomalyStrengthBand {
-        AnomalyStrengthBand.band(forScore: min(1, robustZScore / 10))
+    /// Colour band for the meter.
+    ///
+    /// Derived from `meterLevel` rather than from a fixed z-score scale, so the
+    /// colour always agrees with how far the meter is filled. A fixed scale
+    /// matched the meter only at Medium sensitivity.
+    func band(configuration: DetectorConfiguration) -> AnomalyStrengthBand {
+        AnomalyStrengthBand.band(forScore: meterLevel(configuration: configuration))
     }
 }
 
@@ -441,8 +446,15 @@ final class ScanCoordinator {
         if let newest = spatialProvider.newestSpatialSample {
             pending.wallDistance = newest.hit?.distanceFromCamera
             pending.cameraSpeed = newest.cameraSpeed
-            trackingTotalSamples += 1
-            if newest.tracking.permitsPlacement { trackingNormalSamples += 1 }
+            // Counted only while measuring. `ScanQualitySummary` reports this as
+            // the fraction of *the scan* during which tracking was normal, and
+            // ARKit is routinely `.limited(.initializing)` while the user is
+            // still choosing a wall -- including that would understate the
+            // quality of every scan.
+            if phase == .scanning {
+                trackingTotalSamples += 1
+                if newest.tracking.permitsPlacement { trackingNormalSamples += 1 }
+            }
         }
 
         switch phase {

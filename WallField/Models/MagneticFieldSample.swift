@@ -12,7 +12,8 @@ enum MagneticFieldSource: String, Codable, Sendable, CaseIterable {
     /// basis for a placed marker.
     case rawMagnetometer
 
-    /// Deterministic synthetic data. Never available in Release builds.
+    /// Deterministic synthetic data. Unreachable in a Release build, which
+    /// cannot select `RuntimeMode.simulated`.
     case simulated
 
     var displayName: String {

@@ -158,6 +158,13 @@ final class ARSessionController: ARSpatialProviding {
         isRunning = true
     }
 
+    /// Stops the session and returns the controller to its pre-`start` state.
+    ///
+    /// The observable state is reset as well as the scene, because `start` may
+    /// be called again on the same controller -- the Diagnostics screen offers
+    /// exactly that. Leaving `lockedWall` set while its anchor entity has been
+    /// removed from the scene would report a wall that can never produce a hit
+    /// and can never render a marker.
     func stop() {
         arView.session.pause()
         arView.session.delegate = nil
@@ -168,10 +175,16 @@ final class ARSessionController: ARSpatialProviding {
         relay = nil
         isRunning = false
         removeAllClusterMarkers()
+        unlockWall()
+        detectedWalls.removeAll()
         clearWallOverlays()
         spatialBuffer.removeAll()
         newestSpatialSample = nil
-        targetedWallID = nil
+        trackingQuality = .notAvailable
+        previousCameraPosition = nil
+        previousSampleTime = nil
+        smoothedSpeed = 0
+        problem = nil
         Log.ar.debug("AR session stopped.")
     }
 

@@ -44,6 +44,11 @@ final class CoreMotionMagneticFieldService: MagneticFieldProviding {
     private let clock: any MonotonicClock
     private let handlerQueue: OperationQueue
     private var continuation: AsyncStream<MagneticFieldSample>.Continuation?
+    /// Identifies the current stream. `start` may be called while a stream is
+    /// already running, and finishing the old one fires its termination handler
+    /// asynchronously; without this the late handler would tear down the stream
+    /// that replaced it.
+    private var streamGeneration = 0
     private var rateTracker = SampleRateTracker()
     private let intervalTracker = IntervalTracker()
 
@@ -82,6 +87,8 @@ final class CoreMotionMagneticFieldService: MagneticFieldProviding {
         stop()
 
         let rate = max(1, min(preferredSampleRate, 100))
+        streamGeneration &+= 1
+        let generation = streamGeneration
         requestedSampleRate = rate
         rateTracker.reset()
         intervalTracker.reset()
@@ -112,7 +119,7 @@ final class CoreMotionMagneticFieldService: MagneticFieldProviding {
             // Termination can arrive on any thread when the consumer's task is
             // cancelled, so hop back to the main actor before touching state.
             Task { @MainActor [weak self] in
-                self?.stop()
+                self?.stopIfCurrent(generation: generation)
             }
         }
         return stream
@@ -128,6 +135,15 @@ final class CoreMotionMagneticFieldService: MagneticFieldProviding {
         continuation = nil
         finishing?.finish()
         Log.sensors.debug("Magnetic field updates stopped.")
+    }
+
+    /// Stops only when `generation` is still the live stream.
+    ///
+    /// A termination handler runs asynchronously, so one belonging to a stream
+    /// that has already been replaced must do nothing.
+    private func stopIfCurrent(generation: Int) {
+        guard generation == streamGeneration else { return }
+        stop()
     }
 
     // MARK: - Starting

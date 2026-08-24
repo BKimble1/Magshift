@@ -167,7 +167,7 @@ struct ScanHUDView: View {
             StrengthMeter(
                 level: coordinator.readout.meterLevel(configuration: coordinator.configuration),
                 thresholdFraction: coordinator.readout.thresholdFraction,
-                band: coordinator.readout.band
+                band: coordinator.readout.band(configuration: coordinator.configuration)
             )
 
             HStack(spacing: Theme.Spacing.medium) {

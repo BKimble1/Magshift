@@ -22,6 +22,10 @@ final class SimulatedMagneticFieldService: MagneticFieldProviding {
     private let environment: SimulatedEnvironment
     private let clock: any MonotonicClock
     private var continuation: AsyncStream<MagneticFieldSample>.Continuation?
+    /// Identifies the current stream, for the same reason as
+    /// `CoreMotionMagneticFieldService`: a termination handler belonging to a
+    /// replaced stream must not tear down the one that replaced it.
+    private var streamGeneration = 0
     private var emitTask: Task<Void, Never>?
     private var rateTracker = SampleRateTracker()
     private var nextTimestamp: TimeInterval?
@@ -54,6 +58,8 @@ final class SimulatedMagneticFieldService: MagneticFieldProviding {
     func start(preferredSampleRate: Double) -> AsyncStream<MagneticFieldSample> {
         stop()
         let rate = max(1, min(preferredSampleRate, 100))
+        streamGeneration &+= 1
+        let generation = streamGeneration
         requestedSampleRate = rate
         rateTracker.reset()
         period = 1 / rate
@@ -76,10 +82,16 @@ final class SimulatedMagneticFieldService: MagneticFieldProviding {
 
         continuation.onTermination = { [weak self] _ in
             Task { @MainActor [weak self] in
-                self?.stop()
+                self?.stopIfCurrent(generation: generation)
             }
         }
         return stream
+    }
+
+    /// Stops only when `generation` is still the live stream.
+    private func stopIfCurrent(generation: Int) {
+        guard generation == streamGeneration else { return }
+        stop()
     }
 
     func stop() {

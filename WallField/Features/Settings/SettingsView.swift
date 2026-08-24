@@ -177,7 +177,8 @@ struct SettingsView: View {
         } header: {
             Text("Developer")
         } footer: {
-            Text("Debug builds only. Simulated data is compiled out of Release builds entirely, so it "
+            Text("Debug builds only. A Release build cannot select simulated data at all: the "
+                + "runtime mode resolves to live unconditionally there, so simulated readings "
                 + "cannot reach the App Store.")
         }
     }

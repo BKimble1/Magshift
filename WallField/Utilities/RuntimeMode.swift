@@ -6,7 +6,9 @@ import Foundation
 /// the iOS Simulator and in automated UI tests. It is a development and testing
 /// facility only:
 ///
-/// * it is compiled out entirely in Release builds;
+/// * a Release build has no path into it at all: `resolve()` returns `.live`
+///   unconditionally under `#if !DEBUG`, and every switch into simulated mode
+///   is behind the same guard, so no Release build can select it;
 /// * in Debug builds it must be requested explicitly, either by the
 ///   `-WallFieldDemoMode` launch argument or by the Developer section in
 ///   Settings;

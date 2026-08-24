@@ -34,7 +34,15 @@ struct DiagnosticsView: View {
         }
         .onDisappear { model?.stop() }
         .onChange(of: scenePhase) { _, phase in
-            if phase != .active { model?.stop() }
+            // Stopping on the way out is not enough: without the restart the
+            // screen stays dead after the app returns, with no live readings and
+            // no way to record, until the user navigates away and back.
+            // `start()` is a no-op while already streaming.
+            if phase == .active {
+                model?.start()
+            } else {
+                model?.stop()
+            }
         }
         .sheet(isPresented: Binding(
             get: { exporter.isPresentingShareSheet },
