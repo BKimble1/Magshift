@@ -27,8 +27,10 @@
       selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
       selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
       shouldUseLaunchSchemeArgsEnv = "YES">
-      <TestPlans>
-      </TestPlans>
+      <!-- Deliberately no TestPlans element. Its mere presence, even when
+           empty, puts the scheme into test-plan mode, and xcodebuild then
+           refuses to test: "the scheme uses test plans but has no test plan(s)
+           associated with it". The test bundles are listed directly below. -->
       <Testables>
          <TestableReference
             skipped = "NO">

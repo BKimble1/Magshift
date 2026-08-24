@@ -5,8 +5,8 @@ This does not compile anything -- no Swift toolchain exists on this machine --
 but it does catch the failure modes a hand-generated Xcode project is actually
 prone to: dangling object references, orphaned objects, targets missing a build
 phase, file references that point at paths which do not exist on disk, schemes
-whose blueprint identifiers do not match any target, and xcconfig ``#include``
-chains that do not resolve.
+whose blueprint identifiers do not match any target, schemes whose test action
+cannot actually run, and xcconfig ``#include`` chains that do not resolve.
 
 Exit status is non-zero when any check fails.
 """
@@ -241,6 +241,26 @@ def main() -> int:
         testables = list(tree.iter("TestableReference"))
         if scheme_name == "WallField.xcscheme":
             check(len(testables) == 2, f"{scheme_name}: expected both test bundles in the test action")
+
+        # xcodebuild refuses to test a scheme that declares a TestPlans element
+        # but references no plan: "the scheme uses test plans but has no test
+        # plan(s) associated with it". An empty element is enough to trigger it,
+        # so the scheme must either name at least one plan or list its bundles
+        # directly. Parsed as XML, so a comment mentioning the element is not
+        # mistaken for the element.
+        test_action = tree.find("TestAction")
+        check(test_action is not None, f"{scheme_name}: has no TestAction")
+        if test_action is not None:
+            plans_element = test_action.find("TestPlans")
+            plan_references = list(test_action.iter("TestPlanReference"))
+            if plans_element is not None:
+                check(len(plan_references) > 0,
+                      f"{scheme_name}: declares a TestPlans element but references no test "
+                      "plan, so xcodebuild cannot test this scheme")
+            else:
+                check(len(testables) > 0,
+                      f"{scheme_name}: has neither a test plan nor any TestableReference, "
+                      "so there is nothing to test")
 
     print(f"validate_project.py: {checks} checks, {len(failures)} failure(s)")
     for failure in failures:
