@@ -11,7 +11,7 @@ repository.
 | # | Item | Owner | Status |
 |---|---|---|---|
 | 1 | Apple Team ID and signing certificate | Idlery Services LLC | **BLOCKING** — never commit these; see `Config/Signing.xcconfig` |
-| 2 | Bundle identifier registered in App Store Connect | Idlery Services LLC | **BLOCKING** — `com.idlery.magshift` is a suggestion |
+| 2 | App Store Connect **app record** created for `com.idlery.magshift` | Idlery Services LLC | **BLOCKING** — automatic signing registers the Bundle ID in the Developer Portal but cannot create the app record; without one the upload fails with "No suitable application records were found". See [`RELEASE_TO_TESTFLIGHT.md`](RELEASE_TO_TESTFLIGHT.md) §1.2 |
 | 3 | Published support URL | Idlery Services LLC | **BLOCKING** — `Branding.supportURL` is deliberately `nil`, and Settings hides the row rather than shipping a dead control |
 | 4 | Published privacy-policy URL | Idlery Services LLC | **BLOCKING** — same, `Branding.privacyPolicyURL`; content is in `Docs/PRIVACY.md` |
 | 5 | Physical-device validation | Engineering | **BLOCKING** — `Docs/VALIDATION_PROTOCOL.md` §8 is entirely unperformed |
@@ -265,6 +265,10 @@ Points that matter for review and for the store:
 
 **No Codemagic build has been run yet.** Until one has, the Swift project is
 unproven: it has never been compiled, and no XCTest has ever executed.
+
+The step-by-step release procedure, its Apple-side prerequisites and a table of
+what each failure means are in
+[`RELEASE_TO_TESTFLIGHT.md`](RELEASE_TO_TESTFLIGHT.md).
 
 ## 10. Pre-submission checklist
 

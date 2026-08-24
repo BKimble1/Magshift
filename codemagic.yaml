@@ -382,9 +382,11 @@ workflows:
           set -euo pipefail
           cd "$CM_BUILD_DIR"
 
-          ipa="$(find build/ios/ipa -maxdepth 1 -name '*.ipa' | head -n 1)"
+          # `|| true` so a missing directory reports the message below rather
+          # than aborting on `find`'s exit status under `set -euo pipefail`.
+          ipa="$(find build/ios/ipa -maxdepth 1 -name '*.ipa' 2>/dev/null | head -n 1 || true)"
           if [ -z "$ipa" ]; then
-            echo "ERROR: no IPA was produced." >&2
+            echo "ERROR: no IPA was produced. Check the archive step above." >&2
             exit 1
           fi
           echo "IPA: $ipa"

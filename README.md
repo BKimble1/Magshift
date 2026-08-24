@@ -167,6 +167,13 @@ Codemagic → Teams/Personal account → Integrations. Optionally also set
 from what App Store Connect already holds; without it, Codemagic's own
 incrementing counter is used.
 
+Both workflows are started by hand and neither can be triggered by a push. The
+exact release procedure, its Apple-side prerequisites and what each failure
+means are in
+[`Docs/RELEASE_TO_TESTFLIGHT.md`](Docs/RELEASE_TO_TESTFLIGHT.md). Run
+`wallfield-simulator-tests` and get it green before ever starting a release
+run: it is the only thing that proves the project compiles.
+
 The release workflow deliberately does **not** pass
 `testFlightInternalTestingOnly`, and asserts it is absent from the generated
 export options before archiving, so the uploaded build stays eligible for App
@@ -213,6 +220,8 @@ only when you export and share them yourself. See
   scientific and user-safety limits, and the rules the product enforces
 * [`Docs/VALIDATION_PROTOCOL.md`](Docs/VALIDATION_PROTOCOL.md) — the physical
   test plan and the evidence required before release
+* [`Docs/RELEASE_TO_TESTFLIGHT.md`](Docs/RELEASE_TO_TESTFLIGHT.md) — the
+  step-by-step path to a TestFlight build, and what each failure means
 * [`Docs/APP_STORE_PREP.md`](Docs/APP_STORE_PREP.md) — permissions, privacy
   answers, review notes, prohibited claims, screenshots and remaining items
 * [`Docs/PRIVACY.md`](Docs/PRIVACY.md) — the privacy statement
