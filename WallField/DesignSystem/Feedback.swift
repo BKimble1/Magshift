@@ -21,14 +21,12 @@ final class FeedbackController {
     /// alarm. Nothing this app measures warrants an alarm.
     private static let markerSoundID: SystemSoundID = 1104
 
+    /// Warms the Taptic Engine before a scan. Skipped when haptics are off, so
+    /// the engine is not woken for a scan that will never pulse.
     func prepare() {
         guard hapticsEnabled else { return }
-        let impact = UIImpactFeedbackGenerator(style: .medium)
-        impact.prepare()
-        impactGenerator = impact
-        let notification = UINotificationFeedbackGenerator()
-        notification.prepare()
-        notificationGenerator = notification
+        impact().prepare()
+        notification().prepare()
     }
 
     func release() {
@@ -36,11 +34,31 @@ final class FeedbackController {
         notificationGenerator = nil
     }
 
+    // The generators are created on demand rather than only in `prepare()`.
+    // Haptics can be switched on from the scan HUD *after* a scan has started,
+    // and `prepare()` will already have skipped them; without this the toggle
+    // would appear to work and produce nothing for the rest of the scan.
+
+    private func impact() -> UIImpactFeedbackGenerator {
+        if let impactGenerator { return impactGenerator }
+        let generator = UIImpactFeedbackGenerator(style: .medium)
+        impactGenerator = generator
+        return generator
+    }
+
+    private func notification() -> UINotificationFeedbackGenerator {
+        if let notificationGenerator { return notificationGenerator }
+        let generator = UINotificationFeedbackGenerator()
+        notificationGenerator = generator
+        return generator
+    }
+
     /// Fired when a new cluster appears.
     func newCluster() {
         if hapticsEnabled {
-            impactGenerator?.impactOccurred(intensity: 0.9)
-            impactGenerator?.prepare()
+            let generator = impact()
+            generator.impactOccurred(intensity: 0.9)
+            generator.prepare()
         }
         if soundEnabled {
             AudioServicesPlaySystemSound(Self.markerSoundID)
@@ -51,22 +69,25 @@ final class FeedbackController {
     /// a new cluster so the two are distinguishable without looking.
     func repeatedCluster() {
         guard hapticsEnabled else { return }
-        impactGenerator?.impactOccurred(intensity: 0.5)
-        impactGenerator?.prepare()
+        let generator = impact()
+        generator.impactOccurred(intensity: 0.5)
+        generator.prepare()
     }
 
     /// Fired when a stage of the scan flow completes, such as a successful
     /// calibration.
     func stageCompleted() {
         guard hapticsEnabled else { return }
-        notificationGenerator?.notificationOccurred(.success)
-        notificationGenerator?.prepare()
+        let generator = notification()
+        generator.notificationOccurred(.success)
+        generator.prepare()
     }
 
     /// Fired when something was refused, such as a rejected calibration.
     func refused() {
         guard hapticsEnabled else { return }
-        notificationGenerator?.notificationOccurred(.warning)
-        notificationGenerator?.prepare()
+        let generator = notification()
+        generator.notificationOccurred(.warning)
+        generator.prepare()
     }
 }
