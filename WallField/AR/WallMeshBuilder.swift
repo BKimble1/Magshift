@@ -123,16 +123,30 @@ enum WallMeshBuilder {
 /// Materials for the wall overlay.
 enum WallVisualStyle {
     /// Opacity of the overlay drawn over the wall the user is choosing.
-    static let unselectedOpacity: CGFloat = 0.16
+    static let unselectedOpacity: Float = 0.16
     /// Opacity once a wall is locked. Higher, so the locked surface reads
     /// clearly, but still low enough to see the wall itself through it.
-    static let selectedOpacity: CGFloat = 0.30
+    static let selectedOpacity: Float = 0.30
 
     /// `UnlitMaterial` is used rather than a lit material on purpose: the
     /// overlay's job is to communicate a region, and a lit material would change
     /// brightness with room lighting and could be mistaken for a reading.
     static func overlayMaterial(isSelected: Bool) -> UnlitMaterial {
-        let opacity = isSelected ? selectedOpacity : unselectedOpacity
-        return UnlitMaterial(color: Palette.wallOverlayUIColor.withAlphaComponent(opacity))
+        translucent(Palette.wallOverlayUIColor, opacity: isSelected ? selectedOpacity : unselectedOpacity)
+    }
+
+    /// An unlit material that actually blends.
+    ///
+    /// `UnlitMaterial(color:)` ignores the alpha component of the colour it is
+    /// given. Alpha on the base colour is not what makes a RealityKit material
+    /// transparent -- `blending` is -- so handing it a 16%-alpha blue produced a
+    /// completely opaque slab that hid the wall, the floor and everything else
+    /// behind it. On screen it looked less like an overlay than like a hole cut
+    /// in the room, which is also why the mapped region looked so wrong: none of
+    /// what it covered was visible to judge it against.
+    static func translucent(_ color: UIColor, opacity: Float) -> UnlitMaterial {
+        var material = UnlitMaterial(color: color)
+        material.blending = .transparent(opacity: .init(floatLiteral: opacity))
+        return material
     }
 }

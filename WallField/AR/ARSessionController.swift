@@ -355,7 +355,11 @@ final class ARSessionController: ARSpatialProviding {
             targeted = raycastAnyVerticalPlane()
         }
         currentHit = hit
-        if targetedWallID != targeted { targetedWallID = targeted }
+        if targetedWallID != targeted {
+            targetedWallID = targeted
+            // The highlight follows the crosshair, so redraw when it moves.
+            applyOverlayVisibility()
+        }
 
         let sample = SpatialSample(
             timestamp: now,
@@ -568,8 +572,13 @@ final class ARSessionController: ARSpatialProviding {
     }
 
     private func applyOverlayVisibility() {
+        // Before anything is locked, the highlighted wall is whichever one the
+        // crosshair is on. That is the wall "Lock this wall" would take, and
+        // without showing it there is nothing on screen that explains why the
+        // button is enabled or not -- every mapped surface looked identical.
+        let highlighted = lockedWall?.id ?? targetedWallID
         for (id, model) in wallModels {
-            let isSelected = id == lockedWall?.id
+            let isSelected = id == highlighted
             // Once a wall is locked, unselected walls are hidden entirely rather
             // than merely dimmed, so there is no ambiguity about which surface
             // the readings belong to.

@@ -168,3 +168,36 @@ final class MarkerGeometryTests: XCTestCase {
         )
     }
 }
+
+/// The overlay's material.
+///
+/// Written because the overlay shipped fully opaque: it covered the wall, the
+/// floor and everything else behind it, which made the mapped region impossible
+/// to judge and looked less like an overlay than a hole cut in the room.
+final class WallOverlayMaterialTests: XCTestCase {
+
+    func testTheWallOverlayBlendsInsteadOfCoveringWhatIsBehindIt() {
+        for isSelected in [true, false] {
+            let material = WallVisualStyle.overlayMaterial(isSelected: isSelected)
+            guard case .transparent = material.blending else {
+                XCTFail("""
+                    the overlay is opaque. Alpha on the colour handed to \
+                    UnlitMaterial(color:) is ignored; `blending` is what makes a \
+                    RealityKit material see-through.
+                    """)
+                return
+            }
+        }
+    }
+
+    func testALockedWallReadsMoreStronglyThanAnUnlockedOne() {
+        // The selected wall has to be distinguishable at a glance, because it is
+        // the one every reading in the scan will be attached to.
+        XCTAssertGreaterThan(WallVisualStyle.selectedOpacity, WallVisualStyle.unselectedOpacity)
+    }
+
+    func testTheOverlayNeverBecomesOpaqueEnoughToHideTheWall() {
+        XCTAssertLessThan(WallVisualStyle.selectedOpacity, 0.6)
+        XCTAssertGreaterThan(WallVisualStyle.unselectedOpacity, 0)
+    }
+}

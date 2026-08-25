@@ -46,22 +46,24 @@ enum MarkerEntityFactory {
         let radius = radius(forScore: cluster.peakScore)
         let tint = Palette.uiColor(forBand: cluster.strengthBand)
 
-        let outerAlpha: CGFloat = cluster.confidence == .repeated ? 0.72 : 0.42
+        // Blended, not merely given a colour with alpha in it -- see
+        // `WallVisualStyle.translucent`. These discs were opaque too.
+        let outerAlpha: Float = cluster.confidence == .repeated ? 0.72 : 0.42
         let outer = ModelEntity(
             mesh: .generatePlane(width: radius * 2, depth: radius * 2, cornerRadius: radius),
-            materials: [UnlitMaterial(color: tint.withAlphaComponent(outerAlpha))]
+            materials: [WallVisualStyle.translucent(tint, opacity: outerAlpha)]
         )
         outer.name = "outer"
         outer.position = SIMD3<Float>(0, outerOffset, 0)
 
         let coreScale = cluster.confidence == .repeated ? repeatedCoreScale : unconfirmedCoreScale
         let coreRadius = radius * coreScale
-        let coreColor: UIColor = cluster.confidence == .repeated
-            ? Palette.confirmedCoreUIColor.withAlphaComponent(0.92)
-            : Palette.markerVoidUIColor.withAlphaComponent(0.55)
+        let isRepeated = cluster.confidence == .repeated
+        let coreColor = isRepeated ? Palette.confirmedCoreUIColor : Palette.markerVoidUIColor
+        let coreAlpha: Float = isRepeated ? 0.92 : 0.55
         let core = ModelEntity(
             mesh: .generatePlane(width: coreRadius * 2, depth: coreRadius * 2, cornerRadius: coreRadius),
-            materials: [UnlitMaterial(color: coreColor)]
+            materials: [WallVisualStyle.translucent(coreColor, opacity: coreAlpha)]
         )
         core.name = "core"
         core.position = SIMD3<Float>(0, innerOffset, 0)
