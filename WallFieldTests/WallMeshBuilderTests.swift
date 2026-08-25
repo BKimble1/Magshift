@@ -1,3 +1,4 @@
+import RealityKit
 import XCTest
 import simd
 @testable import WallField

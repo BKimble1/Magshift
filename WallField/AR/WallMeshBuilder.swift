@@ -1,5 +1,9 @@
 import Foundation
 import RealityKit
+// `UIColor` is named in `WallVisualStyle.translucent`'s signature, and naming a
+// type needs its module imported here -- calling a member on a value of that
+// type, which is all this file used to do, does not.
+import UIKit
 import simd
 
 /// Builds the translucent geometry drawn over a detected wall.
