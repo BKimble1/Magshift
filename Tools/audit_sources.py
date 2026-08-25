@@ -76,6 +76,14 @@ STORED_PROPERTY_RE = re.compile(
 TYPE_DECLARATION_RE = re.compile(r"\b(class|actor|struct|enum|extension|protocol)\s+\w+")
 
 
+# Matches a trailing closure handed to a Core Motion `start...Updates` call, and
+# captures everything up to the closure's `in` so the attributes can be checked.
+OFF_MAIN_HANDLER = re.compile(
+    r"\.(?P<api>start\w*Updates)\s*\((?:[^{}]*?)\)\s*\{(?P<head>[^\n]*?)\bin\b",
+    re.DOTALL,
+)
+
+
 def mask_non_code(source: str, spans: list) -> str:
     """The source with comments and string literals blanked out.
 
@@ -255,6 +263,32 @@ def audit(path: str, is_test: bool) -> None:
 
     # Swift rejects `Self` in a stored property initializer inside a class.
     masked = mask_non_code(source, spans)
+
+    # A closure handed to a framework that calls it back on its own queue must
+    # be `@Sendable`.
+    #
+    # This is the rule that would have caught the crash that took six TestFlight
+    # builds to find. `CMDeviceMotionHandler` is imported as a plain,
+    # non-`@Sendable` closure, and a non-`@Sendable` closure literal written
+    # inside a `@MainActor` type inherits that isolation -- so the handler was
+    # compiled main-actor isolated while Core Motion called it on its own queue.
+    # Swift 6 checks the executor when an isolated closure is entered and traps.
+    #
+    # Nothing catches it earlier: it compiles without a diagnostic, and no Core
+    # Motion callback is ever delivered in the Simulator, so the whole test suite
+    # passes. A static rule is the only thing that can hold the line.
+    for match in OFF_MAIN_HANDLER.finditer(masked):
+        head = match.group("head")
+        if "@Sendable" in head:
+            continue
+        line = line_of(source, match.start())
+        failures.append(
+            f"{relative}:{line}: the closure passed to {match.group('api')} is called "
+            f"on the queue given to it, so it must be marked @Sendable. Without it a "
+            f"closure written inside a @MainActor type inherits that isolation and "
+            f"traps the first time the framework calls it."
+        )
+
     for line_number, text in covariant_self_in_stored_property(masked):
         check(False,
               f"{relative}:{line_number}: a class stores a property whose default value "

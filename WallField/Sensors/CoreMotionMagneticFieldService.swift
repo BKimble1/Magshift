@@ -160,10 +160,29 @@ final class CoreMotionMagneticFieldService: MagneticFieldProviding {
         let clock = self.clock
         let tracker = self.intervalTracker
 
-        motionManager.startDeviceMotionUpdates(using: frame, to: handlerQueue) { motion, error in
+        // `@Sendable` here is load-bearing, not decorative.
+        //
+        // `CMDeviceMotionHandler` is imported as a plain, non-`@Sendable` closure,
+        // and a non-`@Sendable` closure literal written inside a `@MainActor`
+        // method inherits that isolation. So without this attribute the handler
+        // was compiled as main-actor isolated -- while Core Motion calls it on
+        // `handlerQueue`, which is not the main queue. Swift 6 checks the executor
+        // when an isolated closure is entered, and killed the app on the first
+        // sample: EXC_BREAKPOINT in `swift_task_checkIsolated`, on a thread named
+        // after this queue.
+        //
+        // It compiled without a single diagnostic, and it could not fail in the
+        // Simulator, where no Core Motion callback ever arrives at all.
+        motionManager.startDeviceMotionUpdates(
+            using: frame, to: handlerQueue
+        ) { @Sendable motion, error in
             if let error {
+                // The description, not the error: the handler is no longer
+                // main-actor isolated, so anything it hands to the main actor
+                // has to be `Sendable`, and `any Error` is not.
+                let message = error.localizedDescription
                 Task { @MainActor in
-                    Log.sensors.error("Device motion error: \(error.localizedDescription, privacy: .public)")
+                    Log.sensors.error("Device motion error: \(message, privacy: .public)")
                 }
                 return
             }
@@ -209,10 +228,15 @@ final class CoreMotionMagneticFieldService: MagneticFieldProviding {
         let clock = self.clock
         let tracker = self.intervalTracker
 
-        motionManager.startMagnetometerUpdates(to: handlerQueue) { data, error in
+        // `@Sendable` for the reason given in `startDeviceMotion`.
+        motionManager.startMagnetometerUpdates(to: handlerQueue) { @Sendable data, error in
             if let error {
+                // The description, not the error: the handler is no longer
+                // main-actor isolated, so anything it hands to the main actor
+                // has to be `Sendable`, and `any Error` is not.
+                let message = error.localizedDescription
                 Task { @MainActor in
-                    Log.sensors.error("Magnetometer error: \(error.localizedDescription, privacy: .public)")
+                    Log.sensors.error("Magnetometer error: \(message, privacy: .public)")
                 }
                 return
             }
